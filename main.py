@@ -6,16 +6,17 @@ bot = telegram.Bot(token=TOKEN)
 
 app = Flask(__name__)
 
+# حافظه موقتی برای ذخیره اطلاعات کاربران
 user_data = {}
 
 @app.route('/')
 def home():
-    return 'ربات تنظیم صورتجلسه فعال است ✅'
+    return 'ربات ثبت کوشا فعال است ✅'
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
     update = telegram.Update.de_json(request.get_json(force=True), bot)
-    
+
     if update.message and update.message.text:
         chat_id = update.message.chat.id
         text = update.message.text.strip()
@@ -47,7 +48,6 @@ def webhook():
         elif step == 5:
             user_data[chat_id]['subject'] = text
 
-            # ساخت متن صورتجلسه
             data = user_data[chat_id]
             message = f"""📄 صورتجلسه {data['meeting_type']}
 نام شرکت: {data['company_name']}
@@ -64,5 +64,9 @@ def webhook():
             user_data[chat_id]['step'] = 0  # بازنشانی برای ورود اطلاعات جدید
         else:
             bot.send_message(chat_id=chat_id, text='لطفاً با دستور /start شروع کنید.')
-    
+
     return 'ok'
+
+# اجرای Flask روی درگاه 5000 برای سازگاری با Render و Docker
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
