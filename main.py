@@ -40,8 +40,16 @@ def handle_message(update: Update, context: CallbackContext):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         update.message.reply_text("نوع شرکت را انتخاب کنید:", reply_markup=reply_markup)
-    elif 2 <= step < len(fields) + 2:
-        field = fields[step - 2]
+    elif 2 <= step < len(fields):
+        field = fields[step]
+        # لیست فیلدهایی که باید فقط اعداد فارسی باشند
+        numeric_fields = ["شماره ثبت", "شناسه ملی", "سرمایه", "تاریخ", "ساعت", "کد پستی"]
+
+        if field in numeric_fields:
+            if any(c in text for c in "0123456789"):
+                context.bot.send_message(chat_id=chat_id, text="لطفاً اعداد را فقط به صورت فارسی وارد کنید.")
+                return  # متوقف شو تا دوباره مقدار درست وارد کند
+
         data[field] = text
         data["step"] += 1
         if data["step"] < len(fields) + 2:
