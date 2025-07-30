@@ -1,143 +1,120 @@
+import os
 from flask import Flask, request
 import telegram
-from telegram import ReplyKeyboardMarkup
-from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import CommandHandler, CallbackContext, CallbackQueryHandler, MessageHandler, Filters, Dispatcher
 
-TOKEN = '7483081974:AAGRXi-NxDAgwYF-xpdhqsQmaGbw8-DipXY'
+TOKEN = os.environ.get("BOT_TOKEN", "توکن_ربات_تو_اینجا")
 bot = telegram.Bot(token=TOKEN)
 
 app = Flask(__name__)
+
 user_data = {}
 
-@app.route('/')
-def home():
-    return 'ربات ثبت کوشا فعال است ✅'
-
-@app.route('/webhook', methods=['POST'])
+@app.route(f"/webhook", methods=["POST"])
 def webhook():
     update = telegram.Update.de_json(request.get_json(force=True), bot)
-    dp = Dispatcher(bot, None, workers=0)
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.text, handle_message))
-    dp.process_update(update)
-    return 'ok'
+    dispatcher.process_update(update)
+    return "ok"
 
-def start(update, context):
-    chat_id = update.message.chat.id
-    user_data[chat_id] = {'step': 'name'}
-    context.bot.send_message(chat_id=chat_id, text="سلام! لطفاً نام شرکت را وارد کنید:")
+def start(update: Update, context: CallbackContext):
+    user_id = update.effective_chat.id
+    user_data[user_id] = {}
+    context.bot.send_message(chat_id=user_id, text="👋 لطفاً نام شرکت را وارد کنید:")
 
-def handle_message(update, context):
-    chat_id = update.message.chat.id
-  
-    if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
-
+def handle_message(update: Update, context: CallbackContext):
+    user_id = update.effective_chat.id
     text = update.message.text
-    data = user_data.get(chat_id, {})
 
-    step = data.get('step', 'name')
+    if 'نام شرکت' not in user_data[user_id]:
+        user_data[user_id]['نام شرکت'] = text
+        # گزینه‌های نوع شرکت
+        keyboard = [
+            [InlineKeyboardButton("سهامی خاص", callback_data='سهامی خاص')],
+            [InlineKeyboardButton("مسئولیت محدود", callback_data='مسئولیت محدود')],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        context.bot.send_message(chat_id=user_id, text="نوع شرکت چیست؟", reply_markup=reply_markup)
+    elif 'شماره ثبت' not in user_data[user_id]:
+        user_data[user_id]['شماره ثبت'] = text
+        context.bot.send_message(chat_id=user_id, text="شناسه ملی شرکت را وارد کنید:")
+    elif 'شناسه ملی' not in user_data[user_id]:
+        user_data[user_id]['شناسه ملی'] = text
+        context.bot.send_message(chat_id=user_id, text="میزان سرمایه ثبت شده (به ریال) را وارد کنید:")
+    elif 'سرمایه' not in user_data[user_id]:
+        user_data[user_id]['سرمایه'] = text
+        context.bot.send_message(chat_id=user_id, text="تاریخ جلسه را وارد کنید (مثال: 1403/05/01):")
+    elif 'تاریخ' not in user_data[user_id]:
+        user_data[user_id]['تاریخ'] = text
+        context.bot.send_message(chat_id=user_id, text="ساعت جلسه را وارد کنید (مثال: 14:00):")
+    elif 'ساعت' not in user_data[user_id]:
+        user_data[user_id]['ساعت'] = text
+        context.bot.send_message(chat_id=user_id, text="نام مدیرعامل (رئیس جلسه) را وارد کنید:")
+    elif 'مدیر عامل' not in user_data[user_id]:
+        user_data[user_id]['مدیر عامل'] = text
+        context.bot.send_message(chat_id=user_id, text="نام نایب رئیس را وارد کنید:")
+    elif 'نایب رییس' not in user_data[user_id]:
+        user_data[user_id]['نایب رییس'] = text
+        context.bot.send_message(chat_id=user_id, text="نام ناظر 2 را وارد کنید:")
+    elif 'رییس' not in user_data[user_id]:
+        user_data[user_id]['رییس'] = text
+        context.bot.send_message(chat_id=user_id, text="نام منشی جلسه را وارد کنید:")
+    elif 'منشی' not in user_data[user_id]:
+        user_data[user_id]['منشی'] = text
+        context.bot.send_message(chat_id=user_id, text="آدرس جدید شرکت را وارد کنید:")
+    elif 'آدرس جدید' not in user_data[user_id]:
+        user_data[user_id]['آدرس جدید'] = text
+        context.bot.send_message(chat_id=user_id, text="کد پستی آدرس جدید را وارد کنید:")
+    elif 'کد پستی' not in user_data[user_id]:
+        user_data[user_id]['کد پستی'] = text
+        context.bot.send_message(chat_id=user_id, text="نام وکیل یا نماینده برای ثبت را وارد کنید:")
+    elif 'وکیل' not in user_data[user_id]:
+        user_data[user_id]['وکیل'] = text
+        send_final_output(update, context)
 
-    if step == 'name':
-        data['name'] = text
-        data['step'] = 'type'
-        reply_markup = ReplyKeyboardMarkup([['سهامی خاص', 'مسئولیت محدود']], one_time_keyboard=True, resize_keyboard=True)
-        context.bot.send_message(chat_id=chat_id, text="نوع شرکت چیست؟", reply_markup=reply_markup)
+def button(update: Update, context: CallbackContext):
+    query = update.callback_query
+    user_id = query.message.chat_id
+    user_data[user_id]['نوع شرکت'] = query.data
+    context.bot.send_message(chat_id=user_id, text="شماره ثبت شرکت را وارد کنید:")
+    query.answer()
 
-    elif step == 'type':
-        data['type'] = text
-        data['step'] = 'reg_number'
-        context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:")
+def send_final_output(update: Update, context: CallbackContext):
+    user_id = update.effective_chat.id
+    data = user_data[user_id]
 
-    elif step == 'reg_number':
-        data['reg_number'] = text
-        data['step'] = 'national_id'
-        context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید:")
+    text = f"""
+صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} {data['نوع شرکت']}
+شماره ثبت شرکت : {data['شماره ثبت']}
+شناسه ملی : {data['شناسه ملی']}
+سرمایه ثبت شده : {data['سرمایه']} ریال
 
-    elif step == 'national_id':
-        data['national_id'] = text
-        data['step'] = 'capital'
-        context.bot.send_message(chat_id=chat_id, text="سرمایه ثبت شده (ریال):")
-
-    elif step == 'capital':
-        data['capital'] = text
-        data['step'] = 'date'
-        context.bot.send_message(chat_id=chat_id, text="تاریخ برگزاری مجمع (مثلاً ۱۴۰۴/۰۵/۱۰):")
-
-    elif step == 'date':
-        data['date'] = text
-        data['step'] = 'time'
-        context.bot.send_message(chat_id=chat_id, text="ساعت برگزاری مجمع:")
-
-    elif step == 'time':
-        data['time'] = text
-        data['step'] = 'manager'
-        context.bot.send_message(chat_id=chat_id, text="نام مدیرعامل (رئیس جلسه):")
-
-    elif step == 'manager':
-        data['manager'] = text
-        data['step'] = 'observer1'
-        context.bot.send_message(chat_id=chat_id, text="نام ناظر اول:")
-
-    elif step == 'observer1':
-        data['observer1'] = text
-        data['step'] = 'observer2'
-        context.bot.send_message(chat_id=chat_id, text="نام ناظر دوم:")
-
-    elif step == 'observer2':
-        data['observer2'] = text
-        data['step'] = 'secretary'
-        context.bot.send_message(chat_id=chat_id, text="نام منشی جلسه:")
-
-    elif step == 'secretary':
-        data['secretary'] = text
-        data['step'] = 'new_address'
-        context.bot.send_message(chat_id=chat_id, text="آدرس جدید شرکت:")
-
-    elif step == 'new_address':
-        data['new_address'] = text
-        data['step'] = 'postal_code'
-        context.bot.send_message(chat_id=chat_id, text="کد پستی:")
-
-    elif step == 'postal_code':
-        data['postal_code'] = text
-        data['step'] = 'attorney'
-        context.bot.send_message(chat_id=chat_id, text="نام وکیل جهت ثبت صورتجلسه:")
-
-    elif step == 'attorney':
-        data['attorney'] = text
-        user_data[chat_id] = {'step': 'done'}  # پایان مراحل
-        send_final_summary(chat_id, data, context)
-
-    else:
-        context.bot.send_message(chat_id=chat_id, text="دستور را از ابتدا شروع کنید با /start")
-
-    user_data[chat_id] = data
-
-def send_final_summary(chat_id, data, context):
-    text = f"""📄 صورتجلسه مجمع عمومی فوق العاده شرکت {data['name']} {data['type']}
-شماره ثبت شرکت: {data['reg_number']}
-شناسه ملی: {data['national_id']}
-سرمایه ثبت شده: {data['capital']} ریال
-
-صورتجلسه مجمع عمومی فوق العاده شرکت {data['name']} {data['type']} ثبت شده به شماره {data['reg_number']} در تاریخ {data['date']} ساعت {data['time']} با حضور کلیه سهامداران در محل قانونی شرکت تشکیل گردید و تصمیمات ذیل اتخاذ گردید.
+صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} {data['نوع شرکت']} ثبت شده به شماره {data['شماره ثبت']} در تاریخ {data['تاریخ']} ساعت {data['ساعت']} با حضور کلیه سهامداران در محل قانونی شرکت تشکیل گردید و تصمیمات ذیل اتخاذ گردید.
 
 الف: در اجرای ماده 101 لایحه اصلاحی قانون تجارت:
-- {data['manager']} به سمت رئیس جلسه
-- {data['observer1']} به سمت ناظر اول جلسه
-- {data['observer2']} به سمت ناظر دوم جلسه
-- {data['secretary']} به سمت منشی جلسه انتخاب شدند.
+ـ {data['مدیر عامل']} به سمت رئیس جلسه
+ـ {data['نایب رییس']} به سمت ناظر 1 جلسه
+ـ {data['رییس']} به سمت ناظر 2 جلسه
+ـ {data['منشی']} به سمت منشی جلسه انتخاب شدند
 
 ب: دستور جلسه اتخاذ تصمیم در خصوص تغییر محل شرکت، مجمع موافقت و تصویب نمود که:
-محل شرکت از آدرس قبلی به آدرس جدید {data['new_address']} کد پستی {data['postal_code']} انتقال یافت.
+محل شرکت از آدرس قبلی به آدرس جدید {data['آدرس جدید']} کد پستی {data['کد پستی']} انتقال یافت.
 
-مجمع به {data['attorney']} احدی از سهامداران شرکت وکالت داده می‌شود که ضمن مراجعه به اداره ثبت شرکت‌ها نسبت به ثبت صورتجلسه و پرداخت حق‌الثبت و امضای ذیل دفاتر ثبت اقدام نماید.
+مجمع به {data['وکیل']} احدی از سهامداران شرکت وکالت داده می‌شود که ضمن مراجعه به اداره ثبت شرکت‌ها نسبت به ثبت صورتجلسه و پرداخت حق‌الثبت و امضاء ذیل دفاتر ثبت اقدام نماید.
 
-✍️ امضای اعضای هیأت رئیسه:
-- رئیس جلسه: {data['manager']}
-- ناظر اول جلسه: {data['observer1']}
-- ناظر دوم جلسه: {data['observer2']}
-- منشی جلسه: {data['secretary']}"""
+✍️ امضاء اعضای هیئت‌رئیسه:
+رئیس جلسه: {data['مدیر عامل']}
+ناظر 1 جلسه: {data['نایب رییس']}
+ناظر 2 جلسه: {data['رییس']}
+منشی جلسه: {data['منشی']}
+"""
+    context.bot.send_message(chat_id=user_id, text=text.strip())
 
-    context.bot.send_message(chat_id=chat_id, text=text)
+# راه‌اندازی Dispatcher
+dispatcher = Dispatcher(bot, None, workers=0, use_context=True)
+dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(CallbackQueryHandler(button))
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
