@@ -22,6 +22,12 @@ persian_number_fields = ["شماره ثبت", "شناسه ملی", "سرمایه
 def is_persian_number(text):
     return all('۰' <= ch <= '۹' or ch.isspace() for ch in text)
 
+def generate_word_file(text: str, filepath: str = "soratjalase.docx"):
+    doc = Document()
+    doc.add_paragraph(text)
+    doc.save(filepath)
+    return filepath
+    
 def start(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     user_data[chat_id] = {"step": 0}
