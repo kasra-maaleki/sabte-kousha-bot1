@@ -245,14 +245,14 @@ def send_summary(chat_id, context):
         text += signers
         context.bot.send_message(chat_id=chat_id, text=text)
         
-    # ✅ ساخت فایل Word و ارسال
-    file_path = generate_word_file(text)
-    with open(file_path, 'rb') as f:
-        context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه.docx")
+        # ✅ ساخت فایل Word و ارسال
+        file_path = generate_word_file(text)
+        with open(file_path, 'rb') as f:
+            context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه.docx")
     
-    os.remove(file_path)  # ← حذف فایل پس از ارسال (اختیاری)
+        os.remove(file_path)  # ← حذف فایل پس از ارسال (اختیاری)
     
-    if موضوع == "تغییر آدرس" and نوع_شرکت == "سهامی خاص":
+    elif موضوع == "تغییر آدرس" and نوع_شرکت == "سهامی خاص":
         # فقط در این حالت صورتجلسه سهامی خاص را بفرست
         text = f"""صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} {data['نوع شرکت']}
 شماره ثبت شرکت : {data['شماره ثبت']}
@@ -277,12 +277,12 @@ def send_summary(chat_id, context):
 ناظر2 جلسه : {data['رییس']}         منشی جلسه: {data['منشی']}"""
         context.bot.send_message(chat_id=chat_id, text=text)
 
-    # ✅ ساخت فایل Word و ارسال
-    file_path = generate_word_file(text)
-    with open(file_path, 'rb') as f:
-        context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه.docx")
+        # ✅ ساخت فایل Word و ارسال
+        file_path = generate_word_file(text)
+        with open(file_path, 'rb') as f:
+            context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه.docx")
     
-    os.remove(file_path)  # ← حذف فایل پس از ارسال (اختیاری)
+        os.remove(file_path)  # ← حذف فایل پس از ارسال (اختیاری)
 
     else:
         # در سایر موارد فعلاً چیزی ارسال نشود
