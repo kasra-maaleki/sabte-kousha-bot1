@@ -10,7 +10,7 @@ app = Flask(__name__)
 
 user_data = {}
 
-fields_common = [
+fields = [
     "نوع شرکت", "نام شرکت", "شماره ثبت", "شناسه ملی", "سرمایه", "تاریخ", "ساعت",
     "مدیر عامل", "نایب رییس", "رییس", "منشی", "آدرس جدید", "کد پستی", "وکیل"
 ]
@@ -52,105 +52,119 @@ def handle_message(update: Update, context: CallbackContext):
     data = user_data[chat_id]
     step = data.get("step", 0)
 
-    # چک کن اول موضوع انتخاب شده باشه
     if "موضوع صورتجلسه" not in data:
         context.bot.send_message(chat_id=chat_id, text="لطفاً ابتدا موضوع صورتجلسه را انتخاب کنید.")
         return
 
-    # مرحله دریافت نوع شرکت
-    if step == 0:
-        context.bot.send_message(chat_id=chat_id, text="لطفاً نوع شرکت را از دکمه‌ها انتخاب کنید.")
+    # تعریف فیلدهای پایه برای تغییر آدرس مسئولیت محدود
+    common_fields = ["نام شرکت", "شماره ثبت", "شناسه ملی", "سرمایه", "تاریخ", "ساعت", "آدرس جدید", "کد پستی", "وکیل"]
+
+    # حالت تغییر آدرس + مسئولیت محدود
+    if data.get("موضوع صورتجلسه") == "تغییر آدرس" and data.get("نوع شرکت") == "مسئولیت محدود":
+        if step == 1:
+            data["نام شرکت"] = text
+            data["step"] = 2
+            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:")
+            return
+
+        if 2 <= step <= 9:
+            field = common_fields[step - 1]
+
+            if field == "تاریخ":
+                if text.count('/') != 2:
+                    context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. لطفاً به صورت ۱۴۰۴/۰۴/۰۷ وارد کنید (با دو /).")
+                    return
+
+            if field in persian_number_fields:
+                if not is_persian_number(text):
+                    context.bot.send_message(chat_id=chat_id, text=f"لطفاً مقدار '{field}' را فقط با اعداد فارسی وارد کنید.")
+                    return
+
+            data[field] = text
+            data["step"] += 1
+
+            if step == 9:
+                context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (بین ۲ تا ۷):")
+                return
+            else:
+                next_field = common_fields[step]
+                context.bot.send_message(chat_id=chat_id, text=get_label(next_field))
+                return
+
+        if step == 10:
+            if not text.isdigit():
+                context.bot.send_message(chat_id=chat_id, text="❗️لطفاً تعداد شرکا را فقط با عدد وارد کنید (بین ۲ تا ۷).")
+                return
+            count = int(text)
+            if count < 2 or count > 7:
+                context.bot.send_message(chat_id=chat_id, text="❗️تعداد شرکا باید بین ۲ تا ۷ باشد. لطفاً مجدداً وارد کنید.")
+                return
+            data["تعداد شرکا"] = count
+            data["step"] += 1
+            data["current_partner"] = 1
+            context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره ۱ را وارد کنید:")
+            return
+
+        if step > 10:
+            current_partner = data.get("current_partner", 1)
+            count = data.get("تعداد شرکا", 0)
+
+            if f"شریک {current_partner}" not in data:
+                data[f"شریک {current_partner}"] = text
+                context.bot.send_message(chat_id=chat_id, text=f"میزان سهم الشرکه شریک شماره {current_partner} را به ریال وارد کنید (عدد فارسی):")
+                return
+            elif f"سهم الشرکه شریک {current_partner}" not in data:
+                if not is_persian_number(text):
+                    context.bot.send_message(chat_id=chat_id, text="❗️لطفاً میزان سهم الشرکه را فقط با اعداد فارسی وارد کنید.")
+                    return
+                data[f"سهم الشرکه شریک {current_partner}"] = text
+                if current_partner < count:
+                    data["current_partner"] = current_partner + 1
+                    context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {current_partner + 1} را وارد کنید:")
+                    return
+                else:
+                    send_summary(chat_id, context)
+                    return
         return
 
-    # مرحله دریافت نام شرکت
+    # منطق قبلی برای سایر موارد و صورتجلسات
+
     if step == 1:
         data["نام شرکت"] = text
         data["step"] = 2
-        context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:")
+        next_field = fields[2]
+        label = get_label(next_field)
+        context.bot.send_message(chat_id=chat_id, text=label)
         return
 
-    # مرحله دریافت شماره ثبت و بعدی‌ها تا قبل از شرکا
-    if step >= 2 and "شرکا" not in data:
-        current_field = get_field_by_step(data["step"])
-        
-        # بررسی تاریخ
-        if current_field == "تاریخ":
+    if step == 0:
+        context.bot.send_message(chat_id=chat_id, text="لطفاً نوع شرکت را از گزینه‌های ارائه شده انتخاب کنید.")
+        return
+
+    if 2 <= step < len(fields):
+        field = fields[step]
+
+        if field == "تاریخ":
             if text.count('/') != 2:
                 context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. لطفاً به صورت ۱۴۰۴/۰۴/۰۷ وارد کنید (با دو /).")
                 return
 
-        # اعداد فارسی
-        if current_field in persian_number_fields:
+        if field in persian_number_fields:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text=f"لطفاً مقدار '{current_field}' را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text=f"لطفاً مقدار '{field}' را فقط با اعداد فارسی وارد کنید.")
                 return
 
-        data[current_field] = text
+        data[field] = text
         data["step"] += 1
-
-        # اگر موضوع تغییر آدرس و نوع شرکت مسئولیت محدود و مرحله رسید به بعد از کد پستی باید پرسید تعداد شرکا
-        if (data["موضوع صورتجلسه"] == "تغییر آدرس" and
-            data["نوع شرکت"] == "مسئولیت محدود" and
-            current_field == "کد پستی"):
-            context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (بین ۲ تا ۷):")
-            data["step"] += 1
-            return
-
-        # ادامه سوالات عادی
-        if data["step"] < len(fields_common):
-            next_field = get_field_by_step(data["step"])
+        if data["step"] < len(fields):
+            next_field = fields[data["step"]]
             label = get_label(next_field)
             context.bot.send_message(chat_id=chat_id, text=label)
         else:
             send_summary(chat_id, context)
         return
 
-    # اگر موضوع تغییر آدرس و نوع شرکت مسئولیت محدود و در مرحله پرسش تعداد شرکا هستیم
-    if "شرکا" not in data and data.get("step") == len(fields_common) + 1:
-        if not text.isdigit():
-            context.bot.send_message(chat_id=chat_id, text="لطفاً یک عدد صحیح وارد کنید.")
-            return
-        count = int(text)
-        if count < 2 or count > 7:
-            context.bot.send_message(chat_id=chat_id, text="تعداد شرکا باید بین ۲ تا ۷ باشد.")
-            return
-        data["تعداد شرکا"] = count
-        data["شرکا"] = []
-        data["step"] += 1
-        context.bot.send_message(chat_id=chat_id, text=f"نام شریک 1 را وارد کنید:")
-        return
-
-    # دریافت نام و سهم الشرکه شرکا
-    if "شرکا" in data and data.get("step") >= len(fields_common) + 2:
-        idx = data.get("partner_idx", 0)
-        if "partner_step" not in data:
-            data["partner_step"] = "name"
-
-        if data["partner_step"] == "name":
-            data["شرکا"].append({"name": text})
-            data["partner_step"] = "share"
-            context.bot.send_message(chat_id=chat_id, text=f"میزان سهم الشرکه شریک {idx+1} را به ریال وارد کنید (اعداد فارسی):")
-            return
-
-        if data["partner_step"] == "share":
-            if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="لطفاً مقدار سهم الشرکه را فقط با اعداد فارسی وارد کنید.")
-                return
-            data["شرکا"][idx]["share"] = text
-            idx += 1
-            data["partner_idx"] = idx
-            data["partner_step"] = "name"
-            if idx < data["تعداد شرکا"]:
-                context.bot.send_message(chat_id=chat_id, text=f"نام شریک {idx+1} را وارد کنید:")
-            else:
-                # همه شرکا و سهم‌ها دریافت شدند
-                send_summary(chat_id, context)
-            return
-
-def get_field_by_step(step):
-    # step از 0 شروع شده، ولی در user_data.step اولین فیلد نوع شرکت است که از قبل گرفته شده
-    # در این کد step 0 برای نوع شرکت نیست، پس این تابع map می کند به fields_common با جابجایی
-    return fields_common[step]
+    context.bot.send_message(chat_id=chat_id, text="لطفاً منتظر بمانید...")
 
 def get_label(field):
     labels = {
@@ -176,12 +190,9 @@ def button_handler(update: Update, context: CallbackContext):
     chat_id = query.message.chat_id
     query.answer()
 
-    data = user_data.setdefault(chat_id, {})
-
-    # اگر موضوع صورتجلسه انتخاب نشده
-    if "موضوع صورتجلسه" not in data:
-        data["موضوع صورتجلسه"] = query.data
-        data["step"] = 0
+    if "موضوع صورتجلسه" not in user_data.get(chat_id, {}):
+        user_data[chat_id]["موضوع صورتجلسه"] = query.data
+        user_data[chat_id]["step"] = 0
         keyboard = [
             [InlineKeyboardButton("سهامی خاص", callback_data='سهامی خاص')],
             [InlineKeyboardButton("مسئولیت محدود", callback_data='مسئولیت محدود')]
@@ -190,50 +201,47 @@ def button_handler(update: Update, context: CallbackContext):
         context.bot.send_message(chat_id=chat_id, text=f"موضوع صورتجلسه انتخاب شد: {query.data}\n\nنوع شرکت را انتخاب کنید:", reply_markup=reply_markup)
         return
 
-    # اگر نوع شرکت انتخاب شده و در مرحله صفر هستیم، به مرحله بعد بریم و نام شرکت رو بخوایم
-    if data.get("step") == 0:
-        data["نوع شرکت"] = query.data
-        data["step"] = 1
+    if user_data[chat_id].get("step") == 0:
+        user_data[chat_id]["نوع شرکت"] = query.data
+        user_data[chat_id]["step"] = 1
         context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
         return
 
 def send_summary(chat_id, context):
     data = user_data[chat_id]
-
-    # حالت تغییر آدرس مسئولیت محدود با شرکا
-    if (data.get("موضوع صورتجلسه") == "تغییر آدرس" and
-        data.get("نوع شرکت") == "مسئولیت محدود" and
-        "شرکا" in data):
-        
-        partners_text = ""
-        for p in data["شرکا"]:
-            partners_text += f"{p['name']:<30} {p['share']} ریال\n"
-        
-        # امضاها با فاصله
-        signatures = "     ".join(p["name"] for p in data["شرکا"])
-
+    if data.get("موضوع صورتجلسه") == "تغییر آدرس" and data.get("نوع شرکت") == "مسئولیت محدود":
+        # صورتجلسه مسئولیت محدود با لیست شرکا
+        partners_lines = ""
+        count = data.get("تعداد شرکا", 0)
+        for i in range(1, count + 1):
+            name = data.get(f"شریک {i}", "")
+            share = data.get(f"سهم الشرکه شریک {i}", "")
+            partners_lines += f"{name}                                              {share} ریال\n"
         text = f"""صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} {data['نوع شرکت']}
-شماره ثبت شرکت :     {data['شماره ثبت']}
-شناسه ملی :      {data['شناسه ملی']}
+شماره ثبت شرکت : {data['شماره ثبت']}
+شناسه ملی : {data['شناسه ملی']}
 سرمایه ثبت شده : {data['سرمایه']} ریال
 
-صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} {data['نوع شرکت']} ثبت شده به شماره {data['شماره ثبت']} در تاریخ  {data['تاریخ']} ساعت {data['ساعت']} با حضور کلیه شرکا در محل قانونی شرکت تشکیل و نسبت به تغییر محل شرکت اتخاذ تصمیم شد. 
+صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} {data['نوع شرکت']} ثبت شده به شماره {data['شماره ثبت']} در تاریخ {data['تاریخ']} ساعت {data['ساعت']} با حضور کلیه شرکا در محل قانونی شرکت تشکیل و نسبت به تغییر محل شرکت اتخاذ تصمیم شد. 
 
 اسامی شرکا                                                     میزان سهم الشرکه
-{partners_text}
+{partners_lines}
 محل شرکت از آدرس قبلی به آدرس {data['آدرس جدید']} به کدپستی {data['کد پستی']} انتقال یافت.
 
 به آقای {data['وکیل']} احدی از شرکاء وکالت داده می شود تا ضمن مراجعه به اداره ثبت شرکتها نسبت به ثبت صورتجلسه و امضاء ذیل دفتر ثبت اقدام نماید.
 
 امضاء شرکا : 
 
-{signatures}"""
-
+"""
+        # فاصله بین اسامی امضاءها به سبک نمونه
+        signers = ""
+        for i in range(1, count + 1):
+            signers += f"{data.get(f'شریک {i}', '')}     "
+        text += signers
         context.bot.send_message(chat_id=chat_id, text=text)
-        return
-
-    # حالت پیش فرض (مثلا سهامی خاص و یا سایر صورتجلسات)
-    text = f"""صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} {data['نوع شرکت']}
+    else:
+        # صورتجلسه سهامی خاص (یا سایر موارد)
+        text = f"""صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} {data['نوع شرکت']}
 شماره ثبت شرکت : {data['شماره ثبت']}
 شناسه ملی : {data['شناسه ملی']}
 سرمایه ثبت شده : {data['سرمایه']} ریال
@@ -254,7 +262,7 @@ def send_summary(chat_id, context):
 امضاء اعضاء هیات رئیسه: 
 رئیس جلسه : {data['مدیر عامل']}     ناظر1 جلسه : {data['نایب رییس']}     
 ناظر2 جلسه : {data['رییس']}         منشی جلسه: {data['منشی']}"""
-    context.bot.send_message(chat_id=chat_id, text=text)
+        context.bot.send_message(chat_id=chat_id, text=text)
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
