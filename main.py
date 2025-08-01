@@ -2,6 +2,8 @@ import telegram
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from flask import Flask, request
+from docx import Document  # ← اضافه شد
+import os  # ← برای حذف فایل پس از ارسال
 
 TOKEN = "7483081974:AAGRXi-NxDAgwYF-xpdhqsQmaGbw8-DipXY"
 bot = telegram.Bot(token=TOKEN)
@@ -242,7 +244,14 @@ def send_summary(chat_id, context):
             signers += f"{data.get(f'شریک {i}', '')}     "
         text += signers
         context.bot.send_message(chat_id=chat_id, text=text)
-
+        
+    # ✅ ساخت فایل Word و ارسال
+    file_path = generate_word_file(text)
+    with open(file_path, 'rb') as f:
+        context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه.docx")
+    
+    os.remove(file_path)  # ← حذف فایل پس از ارسال (اختیاری)
+    
     elif موضوع == "تغییر آدرس" and نوع_شرکت == "سهامی خاص":
         # فقط در این حالت صورتجلسه سهامی خاص را بفرست
         text = f"""صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} {data['نوع شرکت']}
@@ -267,6 +276,13 @@ def send_summary(chat_id, context):
 رئیس جلسه : {data['مدیر عامل']}     ناظر1 جلسه : {data['نایب رییس']}     
 ناظر2 جلسه : {data['رییس']}         منشی جلسه: {data['منشی']}"""
         context.bot.send_message(chat_id=chat_id, text=text)
+
+    # ✅ ساخت فایل Word و ارسال
+    file_path = generate_word_file(text)
+    with open(file_path, 'rb') as f:
+        context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه.docx")
+    
+    os.remove(file_path)  # ← حذف فایل پس از ارسال (اختیاری)
 
     else:
         # در سایر موارد فعلاً چیزی ارسال نشود
