@@ -209,7 +209,10 @@ def button_handler(update: Update, context: CallbackContext):
 
 def send_summary(chat_id, context):
     data = user_data[chat_id]
-    if data.get("موضوع صورتجلسه") == "تغییر آدرس" and data.get("نوع شرکت") == "مسئولیت محدود":
+    موضوع = data.get("موضوع صورتجلسه")
+    نوع_شرکت = data.get("نوع شرکت")
+
+    if موضوع == "تغییر آدرس" and نوع_شرکت == "مسئولیت محدود":
         # صورتجلسه مسئولیت محدود با لیست شرکا
         partners_lines = ""
         count = data.get("تعداد شرکا", 0)
@@ -239,8 +242,9 @@ def send_summary(chat_id, context):
             signers += f"{data.get(f'شریک {i}', '')}     "
         text += signers
         context.bot.send_message(chat_id=chat_id, text=text)
-    else:
-        # صورتجلسه سهامی خاص (یا سایر موارد)
+
+    elif موضوع == "تغییر آدرس" and نوع_شرکت == "سهامی خاص":
+        # فقط در این حالت صورتجلسه سهامی خاص را بفرست
         text = f"""صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} {data['نوع شرکت']}
 شماره ثبت شرکت : {data['شماره ثبت']}
 شناسه ملی : {data['شناسه ملی']}
@@ -263,6 +267,10 @@ def send_summary(chat_id, context):
 رئیس جلسه : {data['مدیر عامل']}     ناظر1 جلسه : {data['نایب رییس']}     
 ناظر2 جلسه : {data['رییس']}         منشی جلسه: {data['منشی']}"""
         context.bot.send_message(chat_id=chat_id, text=text)
+
+    else:
+        # در سایر موارد فعلاً چیزی ارسال نشود
+        context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات با موفقیت دریافت شد.\nدر حال حاضر صورتجلسه‌ای برای این ترکیب تعریف نشده است.")
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
