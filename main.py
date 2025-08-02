@@ -1,7 +1,6 @@
 import telegram
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from flask import Flask, request
 from docx import Document
 from docx.shared import Pt
@@ -27,63 +26,62 @@ persian_number_fields = ["شماره ثبت", "شناسه ملی", "سرمایه
 def is_persian_number(text):
     return all('۰' <= ch <= '۹' or ch.isspace() for ch in text)
 
-def combine_with_back_button(original_markup):
-    # گرفتن لیست اصلی دکمه‌ها
-    buttons = original_markup.inline_keyboard
+def show_back_button(chat_id, context):
+    keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="BACK")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    context.bot.send_message(chat_id=chat_id, text="اگر نیاز دارید به مرحله قبل بازگردید:", reply_markup=reply_markup)
 
-    # اضافه کردن دکمه بازگشت در انتها
-    buttons.append([InlineKeyboardButton("🔙 بازگشت", callback_data="back")])
-
-    return InlineKeyboardMarkup(buttons)
-
-def create_back_button():
-    keyboard = [[InlineKeyboardButton("⬅️ بازگشت", callback_data='back')]]
-    return InlineKeyboardMarkup(keyboard)
-
-def back_button_handler(update: Update, context: CallbackContext):
+def handle_back(update: Update, context: CallbackContext):
     query = update.callback_query
     chat_id = query.message.chat_id
     data = user_data.get(chat_id)
 
-    if not data or data.get("step", 0) <= 1:
-        query.answer("امکان بازگشت بیشتر وجود ندارد.")
+    if not data or "step" not in data or data["step"] <= 1:
+        query.answer("در حال حاضر امکان بازگشت وجود ندارد.")
         return
 
-    data["step"] -= 1
-
-    # حذف آخرین ورودی ثبت‌شده
     step = data["step"]
-    if step < len(fields):
-        field_to_delete = fields[step]
-        if field_to_delete in data:
-            del data[field_to_delete]
 
-    # اگر وارد مرحله شرکا هستیم
+    # حذف مقدار فیلد مربوط به این مرحله
     if data.get("موضوع صورتجلسه") == "تغییر آدرس" and data.get("نوع شرکت") == "مسئولیت محدود":
-        if step == 10:
-            context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (بین ۲ تا ۷):", reply_markup=create_back_button())
-            return
-        elif step > 10:
+        if step <= len(common_fields):
+            prev_field = common_fields[step - 2]
+            data.pop(prev_field, None)
+        elif step == 11:  # تعداد شرکا
+            data.pop("تعداد شرکا", None)
+        elif step > 11:
             current = data.get("current_partner", 1)
             if f"سهم الشرکه شریک {current}" in data:
-                del data[f"سهم الشرکه شریک {current}"]
-                context.bot.send_message(chat_id=chat_id, text=f"مبلغ سهم‌الشرکه شریک شماره {current} را وارد کنید (به ریال):", reply_markup=create_back_button())
-                return
+                data.pop(f"سهم الشرکه شریک {current}")
             elif f"شریک {current}" in data:
-                del data[f"شریک {current}"]
-                data["current_partner"] = current - 1
-                context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {data['current_partner']} را وارد کنید:", reply_markup=create_back_button())
-                return
+                data.pop(f"شریک {current}")
+                data["current_partner"] = max(1, current - 1)
 
-    # بازگشت به مرحله عمومی
-    if step < len(fields):
-        current_field = fields[step]
-        label = get_label(current_field)
-        context.bot.send_message(chat_id=chat_id, text=label, reply_markup=create_back_button())
-    else:
-        context.bot.send_message(chat_id=chat_id, text="مرحله قبلی بازیابی شد.", reply_markup=create_back_button())
+    # بازگشت یک مرحله
+    data["step"] = max(1, step - 1)
+    query.answer("مرحله قبل نمایش داده شد.")
+    query.message.delete()
 
-    query.answer("مرحله قبلی بازیابی شد.")
+    # بازپرسیدن سوال قبلی
+    ask_current_question(chat_id, context)
+
+def ask_current_question(chat_id, context):
+    data = user_data[chat_id]
+    step = data["step"]
+
+    if step == 1:
+        context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
+    elif 2 <= step <= 9:
+        field = common_fields[step - 1]
+        context.bot.send_message(chat_id=chat_id, text=get_label(field))
+    elif step == 10:
+        context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (بین ۲ تا ۷):")
+    elif step > 10:
+        current_partner = data.get("current_partner", 1)
+        if f"شریک {current_partner}" not in data:
+            context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {current_partner} را وارد کنید:")
+        else:
+            context.bot.send_message(chat_id=chat_id, text=f"میزان سهم الشرکه شریک شماره {current_partner} را وارد کنید (عدد فارسی):")
 
 def generate_word_file(text: str, filepath: str = None):
     doc = Document()
@@ -158,7 +156,7 @@ def handle_message(update: Update, context: CallbackContext):
         if step == 1:
             data["نام شرکت"] = text
             data["step"] = 2
-            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:", reply_markup=create_back_button())
+            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:")
             return
 
         if 2 <= step <= 9:
@@ -166,7 +164,7 @@ def handle_message(update: Update, context: CallbackContext):
 
             if field == "تاریخ":
                 if text.count('/') != 2:
-                    context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. لطفاً به صورت ۱۴۰۴/۰۴/۰۷ وارد کنید (با دو / ).")
+                    context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. لطفاً به صورت ۱۴۰۴/۰۴/۰۷ وارد کنید (با دو /).")
                     return
 
             if field in persian_number_fields:
@@ -178,7 +176,7 @@ def handle_message(update: Update, context: CallbackContext):
             data["step"] += 1
 
             if step == 9:
-                context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (بین ۲ تا ۷):", reply_markup=create_back_button())
+                context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (بین ۲ تا ۷):")
                 return
             else:
                 next_field = common_fields[step]
@@ -196,7 +194,7 @@ def handle_message(update: Update, context: CallbackContext):
             data["تعداد شرکا"] = count
             data["step"] += 1
             data["current_partner"] = 1
-            context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره ۱ را وارد کنید:", reply_markup=create_back_button())
+            context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره ۱ را وارد کنید:")
             return
 
         if step > 10:
@@ -205,7 +203,7 @@ def handle_message(update: Update, context: CallbackContext):
 
             if f"شریک {current_partner}" not in data:
                 data[f"شریک {current_partner}"] = text
-                context.bot.send_message(chat_id=chat_id, text=f"میزان سهم الشرکه شریک شماره {current_partner} را به ریال وارد کنید (عدد فارسی):", reply_markup=create_back_button())
+                context.bot.send_message(chat_id=chat_id, text=f"میزان سهم الشرکه شریک شماره {current_partner} را به ریال وارد کنید (عدد فارسی):")
                 return
             elif f"سهم الشرکه شریک {current_partner}" not in data:
                 if not is_persian_number(text):
@@ -214,7 +212,7 @@ def handle_message(update: Update, context: CallbackContext):
                 data[f"سهم الشرکه شریک {current_partner}"] = text
                 if current_partner < count:
                     data["current_partner"] = current_partner + 1
-                    context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {current_partner + 1} را وارد کنید:", reply_markup=create_back_button())
+                    context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {current_partner + 1} را وارد کنید:")
                     return
                 else:
                     send_summary(chat_id, context)
@@ -232,7 +230,7 @@ def handle_message(update: Update, context: CallbackContext):
         return
 
     if step == 0:
-        context.bot.send_message(chat_id=chat_id, text="لطفاً نوع شرکت را از گزینه‌های ارائه شده انتخاب کنید.", reply_markup=create_back_button())
+        context.bot.send_message(chat_id=chat_id, text="لطفاً نوع شرکت را از گزینه‌های ارائه شده انتخاب کنید.")
         return
 
     if 2 <= step < len(fields):
@@ -253,12 +251,12 @@ def handle_message(update: Update, context: CallbackContext):
         if data["step"] < len(fields):
             next_field = fields[data["step"]]
             label = get_label(next_field)
-            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=create_back_button())
+            context.bot.send_message(chat_id=chat_id, text=label)
         else:
             send_summary(chat_id, context)
         return
 
-    context.bot.send_message(chat_id=chat_id, text="لطفاً منتظر بمانید...", reply_markup=create_back_button())
+    context.bot.send_message(chat_id=chat_id, text="لطفاً منتظر بمانید...")
 
 def get_label(field):
     labels = {
@@ -292,7 +290,7 @@ def button_handler(update: Update, context: CallbackContext):
             [InlineKeyboardButton("مسئولیت محدود", callback_data='مسئولیت محدود')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        context.bot.send_message(chat_id=chat_id, text=f"موضوع صورتجلسه انتخاب شد: {query.data}\n\nنوع شرکت را انتخاب کنید:", reply_markup=combine_with_back_button(reply_markup))
+        context.bot.send_message(chat_id=chat_id, text=f"موضوع صورتجلسه انتخاب شد: {query.data}\n\nنوع شرکت را انتخاب کنید:", reply_markup=reply_markup)
         return
 
     if user_data[chat_id].get("step") == 0:
@@ -392,7 +390,6 @@ dispatcher = updater.dispatcher
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 dispatcher.add_handler(CallbackQueryHandler(button_handler))
-dispatcher.add_handler(CallbackQueryHandler(back_button_handler, pattern='^back$'))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
