@@ -27,6 +27,15 @@ persian_number_fields = ["شماره ثبت", "شناسه ملی", "سرمایه
 def is_persian_number(text):
     return all('۰' <= ch <= '۹' or ch.isspace() for ch in text)
 
+def combine_with_back_button(original_markup):
+    # گرفتن لیست اصلی دکمه‌ها
+    buttons = original_markup.inline_keyboard
+
+    # اضافه کردن دکمه بازگشت در انتها
+    buttons.append([InlineKeyboardButton("🔙 بازگشت", callback_data="back")])
+
+    return InlineKeyboardMarkup(buttons)
+
 def create_back_button():
     keyboard = [[InlineKeyboardButton("⬅️ بازگشت", callback_data='back')]]
     return InlineKeyboardMarkup(keyboard)
@@ -283,7 +292,7 @@ def button_handler(update: Update, context: CallbackContext):
             [InlineKeyboardButton("مسئولیت محدود", callback_data='مسئولیت محدود')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        context.bot.send_message(chat_id=chat_id, text=f"موضوع صورتجلسه انتخاب شد: {query.data}\n\nنوع شرکت را انتخاب کنید:", reply_markup=reply_markup, reply_markup=create_back_button())
+        context.bot.send_message(chat_id=chat_id, text=f"موضوع صورتجلسه انتخاب شد: {query.data}\n\nنوع شرکت را انتخاب کنید:", reply_markup=combine_with_back_button(reply_markup))
         return
 
     if user_data[chat_id].get("step") == 0:
