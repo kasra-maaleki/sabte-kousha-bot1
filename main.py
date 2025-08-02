@@ -2,8 +2,12 @@ import telegram
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from flask import Flask, request
-from docx import Document  # ← اضافه شد
-import os  # ← برای حذف فایل پس از ارسال
+from docx import Document
+from docx.shared import Pt
+from docx.oxml.ns import qn
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+import os
+import uuid
 
 TOKEN = "7483081974:AAGRXi-NxDAgwYF-xpdhqsQmaGbw8-DipXY"
 bot = telegram.Bot(token=TOKEN)
@@ -22,9 +26,32 @@ persian_number_fields = ["شماره ثبت", "شناسه ملی", "سرمایه
 def is_persian_number(text):
     return all('۰' <= ch <= '۹' or ch.isspace() for ch in text)
 
-def generate_word_file(text: str, filepath: str = "soratjalase.docx"):
+def generate_word_file(text: str, filepath: str = None):
     doc = Document()
-    doc.add_paragraph(text)
+
+    # تنظیم فونت B Nazanin اگر نصب باشد
+    style = doc.styles['Normal']
+    font = style.font
+    font.name = 'B Nazanin'
+    font.size = Pt(14)
+    style._element.rPr.rFonts.set(qn('w:eastAsia'), 'B Nazanin')
+
+    # راست‌چین کردن و بولد کردن فقط خط اول
+    lines = text.strip().split('\n')
+    for i, line in enumerate(lines):
+        if not line.strip():
+            continue
+        p = doc.add_paragraph()
+        run = p.add_run(line.strip())
+        if i == 0:
+            run.bold = True
+        p.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
+
+    # مسیر ذخیره‌سازی فایل
+    if not filepath:
+        filename = f"soratjalase_{uuid.uuid4().hex}.docx"
+        filepath = os.path.join("/tmp", filename)
+
     doc.save(filepath)
     return filepath
     
