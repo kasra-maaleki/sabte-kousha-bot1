@@ -149,7 +149,7 @@ def handle_message(update: Update, context: CallbackContext):
         if step == 1:
             data["نام شرکت"] = text
             data["step"] = 2
-            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:"), reply_markup=create_back_button())
+            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:", reply_markup=create_back_button())
             return
 
         if 2 <= step <= 9:
@@ -169,7 +169,7 @@ def handle_message(update: Update, context: CallbackContext):
             data["step"] += 1
 
             if step == 9:
-                context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (بین ۲ تا ۷):"), reply_markup=create_back_button())
+                context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (بین ۲ تا ۷):", reply_markup=create_back_button())
                 return
             else:
                 next_field = common_fields[step]
@@ -187,7 +187,7 @@ def handle_message(update: Update, context: CallbackContext):
             data["تعداد شرکا"] = count
             data["step"] += 1
             data["current_partner"] = 1
-            context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره ۱ را وارد کنید:"), reply_markup=create_back_button())
+            context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره ۱ را وارد کنید:", reply_markup=create_back_button())
             return
 
         if step > 10:
@@ -196,7 +196,7 @@ def handle_message(update: Update, context: CallbackContext):
 
             if f"شریک {current_partner}" not in data:
                 data[f"شریک {current_partner}"] = text
-                context.bot.send_message(chat_id=chat_id, text=f"میزان سهم الشرکه شریک شماره {current_partner} را به ریال وارد کنید (عدد فارسی):"), reply_markup=create_back_button())
+                context.bot.send_message(chat_id=chat_id, text=f"میزان سهم الشرکه شریک شماره {current_partner} را به ریال وارد کنید (عدد فارسی):", reply_markup=create_back_button())
                 return
             elif f"سهم الشرکه شریک {current_partner}" not in data:
                 if not is_persian_number(text):
@@ -205,7 +205,7 @@ def handle_message(update: Update, context: CallbackContext):
                 data[f"سهم الشرکه شریک {current_partner}"] = text
                 if current_partner < count:
                     data["current_partner"] = current_partner + 1
-                    context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {current_partner + 1} را وارد کنید:"), reply_markup=create_back_button())
+                    context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {current_partner + 1} را وارد کنید:", reply_markup=create_back_button())
                     return
                 else:
                     send_summary(chat_id, context)
@@ -223,7 +223,7 @@ def handle_message(update: Update, context: CallbackContext):
         return
 
     if step == 0:
-        context.bot.send_message(chat_id=chat_id, text="لطفاً نوع شرکت را از گزینه‌های ارائه شده انتخاب کنید."), reply_markup=create_back_button())
+        context.bot.send_message(chat_id=chat_id, text="لطفاً نوع شرکت را از گزینه‌های ارائه شده انتخاب کنید.", reply_markup=create_back_button())
         return
 
     if 2 <= step < len(fields):
@@ -244,12 +244,12 @@ def handle_message(update: Update, context: CallbackContext):
         if data["step"] < len(fields):
             next_field = fields[data["step"]]
             label = get_label(next_field)
-            context.bot.send_message(chat_id=chat_id, text=label), reply_markup=create_back_button())
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=create_back_button())
         else:
             send_summary(chat_id, context)
         return
 
-    context.bot.send_message(chat_id=chat_id, text="لطفاً منتظر بمانید..."), reply_markup=create_back_button())
+    context.bot.send_message(chat_id=chat_id, text="لطفاً منتظر بمانید...", reply_markup=create_back_button())
 
 def get_label(field):
     labels = {
@@ -283,7 +283,7 @@ def button_handler(update: Update, context: CallbackContext):
             [InlineKeyboardButton("مسئولیت محدود", callback_data='مسئولیت محدود')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        context.bot.send_message(chat_id=chat_id, text=f"موضوع صورتجلسه انتخاب شد: {query.data}\n\nنوع شرکت را انتخاب کنید:", reply_markup=reply_markup)
+        context.bot.send_message(chat_id=chat_id, text=f"موضوع صورتجلسه انتخاب شد: {query.data}\n\nنوع شرکت را انتخاب کنید:", reply_markup=create_back_button())
         return
 
     if user_data[chat_id].get("step") == 0:
