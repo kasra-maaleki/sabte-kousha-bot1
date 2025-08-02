@@ -283,7 +283,7 @@ def button_handler(update: Update, context: CallbackContext):
             [InlineKeyboardButton("مسئولیت محدود", callback_data='مسئولیت محدود')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        context.bot.send_message(chat_id=chat_id, text=f"موضوع صورتجلسه انتخاب شد: {query.data}\n\nنوع شرکت را انتخاب کنید:", reply_markup=create_back_button())
+        context.bot.send_message(chat_id=chat_id, text=f"موضوع صورتجلسه انتخاب شد: {query.data}\n\nنوع شرکت را انتخاب کنید:", reply_markup=reply_markup, reply_markup=create_back_button())
         return
 
     if user_data[chat_id].get("step") == 0:
