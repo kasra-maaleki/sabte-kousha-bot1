@@ -22,6 +22,23 @@ fields = [
 ]
 
 persian_number_fields = ["شماره ثبت", "شناسه ملی", "سرمایه", "کد پستی"]
+(
+    ASK_TRANSFER_FIELD,          # دریافت اطلاعات شرکت مرحله‌ای
+    ASK_SELLER_NAME,
+    ASK_SELLER_NID,
+    ASK_SELLER_SHARES,
+    ASK_SELLER_TOTAL,
+    ASK_BUYER_NAME,
+    ASK_BUYER_NID,
+    ASK_BUYER_ADDRESS,
+    ASK_MORE_SELLERS,
+    ASK_BEFORE_COUNT,
+    ASK_BEFORE_NAME,
+    ASK_BEFORE_SHARES,
+    ASK_AFTER_COUNT,
+    ASK_AFTER_NAME,
+    ASK_AFTER_SHARES,
+) = range(100, 115)
 
 def is_persian_number(text):
     return all('۰' <= ch <= '۹' or ch.isspace() for ch in text)
@@ -30,6 +47,169 @@ def show_back_button(chat_id, context):
     keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="BACK")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     context.bot.send_message(chat_id=chat_id, text="اگر نیاز دارید به مرحله قبل بازگردید:", reply_markup=reply_markup)
+
+def start_transfer_process(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    transfer_sessions[chat_id] = {'step': 0}
+    context.bot.send_message(chat_id=chat_id, text="🔹 نام شرکت را وارد نمایید:")
+    return ASK_TRANSFER_FIELD
+
+def ask_transfer_field(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    session = transfer_sessions[chat_id]
+    answers = session.setdefault('fields', [])
+    fields = [
+        "نام شرکت", "نوع شرکت", "شماره ثبت", "شناسه ملی", "سرمایه ثبت شده (ریال)",
+        "تاریخ جلسه", "ساعت جلسه", "مدیر عامل", "نایب رییس", "رییس جلسه", "منشی", "وکیل"
+    ]
+    answers.append(update.message.text.strip())
+    if len(answers) < len(fields):
+        context.bot.send_message(chat_id=chat_id, text=f"🔹 {fields[len(answers)]} را وارد نمایید:")
+        return ASK_TRANSFER_FIELD
+    else:
+        session.update(dict(zip(fields, answers)))
+        session['sellers'] = []
+        context.bot.send_message(chat_id=chat_id, text="🔸 نام فروشنده شماره ۱ را وارد کنید:")
+        return ASK_SELLER_NAME
+
+def ask_seller_name(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    session = transfer_sessions[chat_id]
+    session['current_seller'] = {'seller': update.message.text.strip()}
+    context.bot.send_message(chat_id=chat_id, text="🔹 کد ملی فروشنده را وارد نمایید:")
+    return ASK_SELLER_NID
+
+def ask_seller_nid(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    session = transfer_sessions[chat_id]
+    session['current_seller']['seller_national_id'] = update.message.text.strip()
+    context.bot.send_message(chat_id=chat_id, text="🔹 تعداد سهام واگذار شده را وارد نمایید:")
+    return ASK_SELLER_SHARES
+
+def ask_seller_shares(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    session = transfer_sessions[chat_id]
+    session['current_seller']['shares'] = int(update.message.text.strip())
+    context.bot.send_message(chat_id=chat_id, text="🔹 مجموع سهام این فروشنده قبل از انتقال:")
+    return ASK_SELLER_TOTAL
+
+def ask_seller_total(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    session = transfer_sessions[chat_id]
+    session['current_seller']['total_shares'] = int(update.message.text.strip())
+    context.bot.send_message(chat_id=chat_id, text="🔹 نام خریدار را وارد نمایید:")
+    return ASK_BUYER_NAME
+
+def ask_buyer_name(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    session = transfer_sessions[chat_id]
+    session['current_seller']['buyer'] = update.message.text.strip()
+    context.bot.send_message(chat_id=chat_id, text="🔹 کد ملی خریدار را وارد نمایید:")
+    return ASK_BUYER_NID
+
+def ask_buyer_nid(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    session = transfer_sessions[chat_id]
+    session['current_seller']['buyer_national_id'] = update.message.text.strip()
+    context.bot.send_message(chat_id=chat_id, text="🔹 آدرس خریدار را وارد نمایید:")
+    return ASK_BUYER_ADDRESS
+
+def ask_buyer_address(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    session = transfer_sessions[chat_id]
+    session['current_seller']['buyer_address'] = update.message.text.strip()
+    session.setdefault('sellers', []).append(session['current_seller'])
+    del session['current_seller']
+    context.bot.send_message(chat_id=chat_id, text="آیا فروشنده دیگری وجود دارد؟ (بله / خیر)")
+    return ASK_MORE_SELLERS
+
+def ask_more_sellers(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    text = update.message.text.strip()
+    if text == "بله":
+        context.bot.send_message(chat_id=chat_id, text="🔸 نام فروشنده بعدی را وارد نمایید:")
+        return ASK_SELLER_NAME
+    elif text == "خیر":
+        context.bot.send_message(chat_id=chat_id, text="🔸 چند سهامدار قبل از نقل و انتقال وجود دارد؟ (عدد وارد کنید)")
+        return ASK_BEFORE_COUNT
+    else:
+        context.bot.send_message(chat_id=chat_id, text="❗ لطفاً فقط یکی از گزینه‌های «بله» یا «خیر» را وارد نمایید.")
+        return ASK_MORE_SELLERS
+
+def ask_before_count(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    session = transfer_sessions[chat_id]
+    count = update.message.text.strip()
+
+    if not count.isdigit():
+        context.bot.send_message(chat_id=chat_id, text="❗ لطفاً فقط عدد وارد نمایید:")
+        return ASK_BEFORE_COUNT
+
+    session['before_count'] = int(count)
+    session['before_index'] = 1
+    session['before_shareholders'] = []
+    context.bot.send_message(chat_id=chat_id, text="🔹 نام سهامدار شماره 1 (قبل از نقل و انتقال) را وارد نمایید:")
+    return ASK_BEFORE_NAME
+
+def ask_before_name(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    session = transfer_sessions[chat_id]
+    session['current_before'] = {'name': update.message.text.strip()}
+    context.bot.send_message(chat_id=chat_id, text="🔹 تعداد سهام این سهامدار را وارد نمایید:")
+    return ASK_BEFORE_SHARES
+
+def ask_before_shares(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    session = transfer_sessions[chat_id]
+
+    session['current_before']['shares'] = update.message.text.strip()
+    session['before_shareholders'].append(session['current_before'])
+    del session['current_before']
+    session['before_index'] += 1
+
+    if session['before_index'] <= session['before_count']:
+        context.bot.send_message(chat_id=chat_id, text=f"🔹 نام سهامدار شماره {session['before_index']} (قبل از نقل و انتقال) را وارد نمایید:")
+        return ASK_BEFORE_NAME
+    else:
+        context.bot.send_message(chat_id=chat_id, text="🔸 چند سهامدار بعد از نقل و انتقال وجود دارد؟ (عدد وارد کنید)")
+        return ASK_AFTER_COUNT
+
+def ask_after_count(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    session = transfer_sessions[chat_id]
+    count = update.message.text.strip()
+
+    if not count.isdigit():
+        context.bot.send_message(chat_id=chat_id, text="❗ لطفاً فقط عدد وارد نمایید:")
+        return ASK_AFTER_COUNT
+
+    session['after_count'] = int(count)
+    session['after_index'] = 1
+    session['after_shareholders'] = []
+    context.bot.send_message(chat_id=chat_id, text="🔹 نام سهامدار شماره 1 (بعد از نقل و انتقال) را وارد نمایید:")
+    return ASK_AFTER_NAME
+
+def ask_after_name(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    session = transfer_sessions[chat_id]
+    session['current_after'] = {'name': update.message.text.strip()}
+    context.bot.send_message(chat_id=chat_id, text="🔹 تعداد سهام این سهامدار را وارد نمایید:")
+    return ASK_AFTER_SHARES
+
+def ask_after_shares(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    session = transfer_sessions[chat_id]
+
+    session['current_after']['shares'] = update.message.text.strip()
+    session['after_shareholders'].append(session['current_after'])
+    del session['current_after']
+    session['after_index'] += 1
+
+    if session['after_index'] <= session['after_count']:
+        context.bot.send_message(chat_id=chat_id, text=f"🔹 نام سهامدار شماره {session['after_index']} (بعد از نقل و انتقال) را وارد نمایید:")
+        return ASK_AFTER_NAME
+    else:
+        return generate_transfer_summary(update, context)
 
 def handle_back(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -298,6 +478,104 @@ def button_handler(update: Update, context: CallbackContext):
         user_data[chat_id]["step"] = 1
         context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
         return
+
+def generate_transfer_summary(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    data = transfer_sessions[chat_id]
+
+    # اطلاعات ثابت اولیه
+    fields = ["نام شرکت", "نوع شرکت", "شماره ثبت", "شناسه ملی", "سرمایه ثبت شده (ریال)",
+              "تاریخ جلسه", "ساعت جلسه", "مدیر عامل", "نایب رییس", "رییس جلسه", "منشی", "وکیل"]
+    session = {k: data[k] for k in fields}
+    sellers = data['sellers']
+    before = data['before_shareholders']
+    after = data['after_shareholders']
+
+    # تولید خط‌های واگذاری
+    transfer_texts = []
+    if len(sellers) == 2 and sellers[0]['seller'] == sellers[1]['seller']:
+        s1, s2 = sellers
+        transfer_texts.append(
+            f"    {s1['seller']} به شماره ملی {s1['seller_national_id']} تعداد {s1['shares']} سهم از کل سهام خود را به {s1['buyer']} به شماره ملی {s1['buyer_national_id']} به آدرس {s1['buyer_address']} واگذار و تعداد {s2['shares']} سهم از کل سهام خود را به {s2['buyer']} به شماره ملی {s2['buyer_national_id']} به آدرس {s2['buyer_address']} واگذار کرد"
+        )
+    else:
+        for s in sellers:
+            if s['shares'] == s['total_shares']:
+                transfer_texts.append(
+                    f"    {s['seller']} به شماره ملی {s['seller_national_id']} تعداد {s['shares']} سهم از کل سهام خود به {s['buyer']} به شماره ملی {s['buyer_national_id']} به آدرس {s['buyer_address']} واگذار کرد و از شرکت خارج شد و دیگر هیچ گونه حق و سمتی ندارد."
+                )
+            else:
+                transfer_texts.append(
+                    f"    {s['seller']} به شماره ملی {s['seller_national_id']} تعداد {s['shares']} سهم از کل سهام خود به {s['buyer']} به شماره ملی {s['buyer_national_id']} به آدرس {s['buyer_address']} واگذار کرد."
+                )
+
+    seller_signs = "\n\n".join([f"{s['seller']}                          {s['buyer']}" for s in sellers])
+
+    # جدول سهامداران قبل
+    before_table = "\n".join([
+        f"{i+1}\n\t{sh['name']}\t{sh['shares']}\t" for i, sh in enumerate(before)
+    ])
+
+    # جدول بعد از نقل و انتقال
+    after_table = "\n".join([
+        f"{i+1}\n\t{sh['name']}\t{sh['shares']}\t" for i, sh in enumerate(after)
+    ])
+
+    text = f"""نقل و انتقال سهام شرکت سهامی خاص
+متن : صورتجلسه مجمع عمومی فوق العاده شرکت {session['نام شرکت']} ){session['نوع شرکت']}(
+شماره ثبت شرکت :     {session['شماره ثبت']}
+شناسه ملی :      {session['شناسه ملی']}
+سرمایه ثبت شده : {session['سرمایه ثبت شده (ریال)']} ریال
+صورتجلسه مجمع عمومی فوق العاده شرکت {session['نام شرکت']} ){session['نوع شرکت']} (ثبت شده به شماره {session['شماره ثبت']} در تاریخ  {session['تاریخ جلسه']} ساعت {session['ساعت جلسه']} با حضور کلیه سهامداران در محل قانونی شرکت تشکیل گردید و تصمیمات ذیل اتخاذ گردید.
+الف: در اجرای ماده 101 لایحه اصلاحی قانون تجارت: 
+ـ  {session['مدیر عامل']}                                   به سمت رئیس جلسه 
+ـ  {session['نایب رییس']}                                  به سمت ناظر 1 جلسه 
+ـ  {session['رییس جلسه']}                                        به سمت ناظر 2 جلسه 
+ـ  {session['منشی']}                         به سمت منشی جلسه انتخاب شدند
+
+ب: دستور جلسه اتخاذ تصمیم در خصوص نقل و انتقال سهام، مجمع موافقت و تصویب نمود که:
+{chr(10).join(transfer_texts)}
+
+مجمع به {session['وکیل']} احدی از سهامداران شرکت وکالت داده می شود که ضمن مراجعه به اداره ثبت شرکتها نسبت به ثبت صورتجلسه و پرداخت حق الثبت و امضاء ذیل دفاتر ثبت اقدام نماید. 
+
+امضاء اعضاء هیات رئیسه: 
+رئیس جلسه :  {session['مدیر عامل']}                                   ناظر1 جلسه : {session['نایب رییس']}                               
+
+
+ناظر2جلسه : {session['رییس جلسه']}                                       منشی جلسه: {session['منشی']}
+
+
+فروشندگان : {sellers[0]['seller']}                          خریداران: {sellers[0]['buyer']}                          
+
+                                                                               
+	                   	                 {sellers[1]['seller'] if len(sellers)>1 else ''}                               {sellers[1]['buyer'] if len(sellers)>1 else ''}                
+
+صورت سهامداران حاضر در مجمع عمومی (فوق العاده) مورخه {session['تاریخ جلسه']}
+{session['نام شرکت']} قبل از نقل و انتقال سهام
+
+ردیف\tنام و نام خانوادگی\tتعداد سهام\tامضا سهامداران
+{before_table}
+
+صورت سهامداران حاضر در مجمع عمومی (فوق العاده) مورخه {session['تاریخ جلسه']}
+{session['نام شرکت']} بعد از نقل و انتقال سهام
+
+ردیف\tنام و نام خانوادگی\tتعداد سهام\tامضا سهامداران
+{after_table}
+
+
+
+صورت سهامداران حاضر در مجمع عمومی (فوق العاده) مورخه {session['تاریخ جلسه']}
+{session['نام شرکت']}
+ردیف\tنام و نام خانوادگی\tتعداد سهام\tامضا سهامداران
+{before_table}
+"""
+
+    # ساخت فایل Word
+    path = generate_word_file(text)
+    context.bot.send_message(chat_id=chat_id, text="✅ صورتجلسه آماده شد. فایل Word زیر را دریافت کنید:")
+    context.bot.send_document(chat_id=chat_id, document=open(path, 'rb'))
+
+    return ConversationHandler.END
 
 def send_summary(chat_id, context):
     data = user_data[chat_id]
