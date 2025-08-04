@@ -399,6 +399,80 @@ def handle_message(update: Update, context: CallbackContext):
                     return
         return
 
+        # حالت نقل و انتقال سهام + سهامی خاص
+    if data.get("موضوع صورتجلسه") == "نقل و انتقال سهام" and data.get("نوع شرکت") == "سهامی خاص":
+        if step == 1:
+            transfer_sessions[chat_id] = {}
+            transfer_sessions[chat_id]["نام شرکت"] = text
+            data["step"] = 2
+            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:")
+            return
+
+        if step == 2:
+            transfer_sessions[chat_id]["شماره ثبت"] = text
+            data["step"] = 3
+            context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید:")
+            return
+
+        if step == 3:
+            transfer_sessions[chat_id]["شناسه ملی"] = text
+            data["step"] = 4
+            context.bot.send_message(chat_id=chat_id, text="سرمایه ثبت شده شرکت را وارد کنید (عدد فارسی):")
+            return
+
+        if step == 4:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.")
+                return
+            transfer_sessions[chat_id]["سرمایه ثبت شده (ریال)"] = text
+            data["step"] = 5
+            context.bot.send_message(chat_id=chat_id, text="تاریخ جلسه را وارد کنید (مثلاً ۱۴۰۴/۰۴/۰۷):")
+            return
+
+        if step == 5:
+            if text.count("/") != 2:
+                context.bot.send_message(chat_id=chat_id, text="❗️تاریخ را با فرمت صحیح وارد کنید (۱۴۰۴/۰۴/۰۷).")
+                return
+            transfer_sessions[chat_id]["تاریخ جلسه"] = text
+            data["step"] = 6
+            context.bot.send_message(chat_id=chat_id, text="ساعت جلسه را وارد کنید (مثلاً ۱۰:۰۰):")
+            return
+
+        if step == 6:
+            transfer_sessions[chat_id]["ساعت جلسه"] = text
+            data["step"] = 7
+            context.bot.send_message(chat_id=chat_id, text="نام مدیر عامل را وارد کنید:")
+            return
+
+        if step == 7:
+            transfer_sessions[chat_id]["مدیر عامل"] = text
+            data["step"] = 8
+            context.bot.send_message(chat_id=chat_id, text="نام نایب رئیس جلسه را وارد کنید:")
+            return
+
+        if step == 8:
+            transfer_sessions[chat_id]["نایب رییس"] = text
+            data["step"] = 9
+            context.bot.send_message(chat_id=chat_id, text="نام رئیس جلسه را وارد کنید:")
+            return
+
+        if step == 9:
+            transfer_sessions[chat_id]["رییس جلسه"] = text
+            data["step"] = 10
+            context.bot.send_message(chat_id=chat_id, text="نام منشی جلسه را وارد کنید:")
+            return
+
+        if step == 10:
+            transfer_sessions[chat_id]["منشی"] = text
+            data["step"] = 11
+            context.bot.send_message(chat_id=chat_id, text="نام وکیل برای ثبت در اداره ثبت شرکت‌ها را وارد کنید:")
+            return
+
+        if step == 11:
+            transfer_sessions[chat_id]["وکیل"] = text
+            # بقیه مراحل مربوط به فروشندگان در فایل جداگانه هندل می‌شوند
+            return ask_seller_name(update, context)
+	
     # منطق قبلی برای سایر موارد و صورتجلسات
 
     if step == 1:
@@ -475,9 +549,19 @@ def button_handler(update: Update, context: CallbackContext):
 
     if user_data[chat_id].get("step") == 0:
         user_data[chat_id]["نوع شرکت"] = query.data
+
+        # اگر موضوع نقل و انتقال سهام و نوع شرکت سهامی خاص بود، مسیر خاص خودش اجرا بشه
+        if user_data[chat_id]["موضوع صورتجلسه"] == "🔄 نقل و انتقال سهام" and query.data == "سهامی خاص":
+            transfer_sessions[chat_id] = {}
+            context.bot.send_message(chat_id=chat_id, text="لطفاً نام شرکت را وارد نمایید:")
+            user_data[chat_id]["step"] = 1
+            return
+
+        # در غیر این صورت، مسیر عمومی (مثلاً برای تغییر آدرس و بقیه) اجرا بشه
         user_data[chat_id]["step"] = 1
         context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
         return
+
 
 def generate_transfer_summary(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
