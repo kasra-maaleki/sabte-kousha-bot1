@@ -667,9 +667,9 @@ def send_summary(chat_id, context):
     نوع_شرکت = data.get("نوع شرکت")
 
     if موضوع == "نقل و انتقال سهام" and نوع_شرکت == "سهامی خاص":
-    update = Update(update_id=None, message=type('msg', (object,), {'chat_id': chat_id})())  # شبیه‌سازی update
-    generate_transfer_summary(update, context)
-    return
+        update = Update(update_id=None, message=type('msg', (object,), {'chat_id': chat_id})())  # شبیه‌سازی update
+        generate_transfer_summary(update, context)
+        return
 	
     if موضوع == "تغییر آدرس" and نوع_شرکت == "مسئولیت محدود":
         # صورتجلسه مسئولیت محدود با لیست شرکا
