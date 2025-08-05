@@ -1,5 +1,6 @@
 import telegram
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
+from telegram.ext import ConversationHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from flask import Flask, request
 from docx import Document
@@ -40,6 +41,30 @@ persian_number_fields = ["شماره ثبت", "شناسه ملی", "سرمایه
     ASK_AFTER_NAME,
     ASK_AFTER_SHARES,
 ) = range(100, 115)
+
+conv_handler = ConversationHandler(
+    entry_points=[MessageHandler(Filters.text & ~Filters.command, start_transfer_process)],
+    states={
+        ASK_TRANSFER_FIELD: [MessageHandler(Filters.text & ~Filters.command, ask_transfer_field)],
+        ASK_SELLER_NAME: [MessageHandler(Filters.text & ~Filters.command, ask_seller_name)],
+        ASK_SELLER_NID: [MessageHandler(Filters.text & ~Filters.command, ask_seller_nid)],
+        ASK_SELLER_SHARES: [MessageHandler(Filters.text & ~Filters.command, ask_seller_shares)],
+        ASK_SELLER_TOTAL: [MessageHandler(Filters.text & ~Filters.command, ask_seller_total)],
+        ASK_BUYER_NAME: [MessageHandler(Filters.text & ~Filters.command, ask_buyer_name)],
+        ASK_BUYER_NID: [MessageHandler(Filters.text & ~Filters.command, ask_buyer_nid)],
+        ASK_BUYER_ADDRESS: [MessageHandler(Filters.text & ~Filters.command, ask_buyer_address)],
+        ASK_MORE_SELLERS: [MessageHandler(Filters.text & ~Filters.command, ask_more_sellers)],
+        ASK_BEFORE_COUNT: [MessageHandler(Filters.text & ~Filters.command, ask_before_count)],
+        ASK_BEFORE_NAME: [MessageHandler(Filters.text & ~Filters.command, ask_before_name)],
+        ASK_BEFORE_SHARES: [MessageHandler(Filters.text & ~Filters.command, ask_before_shares)],
+        ASK_AFTER_COUNT: [MessageHandler(Filters.text & ~Filters.command, ask_after_count)],
+        ASK_AFTER_NAME: [MessageHandler(Filters.text & ~Filters.command, ask_after_name)],
+        ASK_AFTER_SHARES: [MessageHandler(Filters.text & ~Filters.command, ask_after_shares)],
+    },
+    fallbacks=[CallbackQueryHandler(handle_back, pattern='^BACK$')],
+)
+
+dispatcher.add_handler(conv_handler)
 
 def is_persian_number(text):
     return all('۰' <= ch <= '۹' or ch.isspace() for ch in text)
