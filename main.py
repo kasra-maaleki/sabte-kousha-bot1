@@ -161,8 +161,189 @@ def handle_message(update: Update, context: CallbackContext):
                     send_summary(chat_id, context)
                     return
         return
+    if data.get("موضوع صورتجلسه") == "نقل و انتقال سهام" and data.get("نوع شرکت") == "سهامی خاص":
+        data["step"] = 1
+        context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
+        return
 
-    # منطق قبلی برای سایر موارد و صورتجلسات
+    if موضوع == "نقل و انتقال سهام" and نوع_شرکت == "سهامی خاص":
+        if step == 1:
+            data["نام شرکت"] = text
+            data["step"] = 2
+            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:")
+            return
+
+        if step == 2:
+            data["شماره ثبت"] = text
+            data["step"] = 3
+            context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید:")
+            return
+
+        if step == 3:
+            data["شناسه ملی"] = text
+            data["step"] = 4
+            context.bot.send_message(chat_id=chat_id, text="سرمایه شرکت به ریال را وارد کنید (عدد فارسی):")
+            return
+
+        if step == 4:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.")
+                return
+            data["سرمایه"] = text
+            data["step"] = 5
+            context.bot.send_message(chat_id=chat_id, text="تاریخ صورتجلسه را وارد کنید (مثلاً: ۱۴۰۴/۰۵/۱۵):")
+            return
+
+        if step == 5:
+            if text.count('/') != 2:
+                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.")
+                return
+            data["تاریخ"] = text
+            data["step"] = 6
+            context.bot.send_message(chat_id=chat_id, text="ساعت جلسه را وارد کنید:")
+            return
+
+        if step == 6:
+            data["ساعت"] = text
+            data["step"] = 7
+            context.bot.send_message(chat_id=chat_id, text="مدیر عامل (رئیس جلسه) را وارد کنید:")
+            return
+
+        if step == 7:
+            data["مدیر عامل"] = text
+            data["step"] = 8
+            context.bot.send_message(chat_id=chat_id, text="نایب رئیس جلسه را وارد کنید:")
+            return
+
+        if step == 8:
+            data["نایب رییس"] = text
+            data["step"] = 9
+            context.bot.send_message(chat_id=chat_id, text="ناظر دوم جلسه را وارد کنید:")
+            return
+
+        if step == 9:
+            data["رییس"] = text
+            data["step"] = 10
+            context.bot.send_message(chat_id=chat_id, text="منشی جلسه را وارد کنید:")
+            return
+
+        if step == 10:
+            data["منشی"] = text
+            data["step"] = 11
+            context.bot.send_message(chat_id=chat_id, text="تعداد فروشندگان را وارد کنید:")
+            return
+
+        # شروع دریافت فروشندگان
+        if step == 11:
+            if not text.isdigit():
+                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
+                return
+            count = int(text)
+            data["تعداد فروشندگان"] = count
+            data["فروشنده_index"] = 1
+            data["step"] = 12
+            context.bot.send_message(chat_id=chat_id, text=f"نام فروشنده شماره ۱ را وارد کنید:")
+            return
+
+        if step >= 12 and data.get("فروشنده_index", 0) <= data.get("تعداد فروشندگان", 0):
+            i = data["فروشنده_index"]
+            prefix = f"فروشنده {i}"
+
+            if f"{prefix} نام" not in data:
+                data[f"{prefix} نام"] = text
+                context.bot.send_message(chat_id=chat_id, text=f"کد ملی {prefix} را وارد کنید:")
+                return
+            elif f"{prefix} کد ملی" not in data:
+                data[f"{prefix} کد ملی"] = text
+                context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام منتقل‌شده توسط {prefix} را وارد کنید:")
+                return
+            elif f"{prefix} تعداد" not in data:
+                data[f"{prefix} تعداد"] = text
+                context.bot.send_message(chat_id=chat_id, text=f"نام خریدار {i} را وارد کنید:")
+                return
+            elif f"خریدار {i} نام" not in data:
+                data[f"خریدار {i} نام"] = text
+                context.bot.send_message(chat_id=chat_id, text=f"کد ملی خریدار {i} را وارد کنید:")
+                return
+            elif f"خریدار {i} کد ملی" not in data:
+                data[f"خریدار {i} کد ملی"] = text
+                context.bot.send_message(chat_id=chat_id, text=f"آدرس خریدار {i} را وارد کنید:")
+                return
+            elif f"خریدار {i} آدرس" not in data:
+                data[f"خریدار {i} آدرس"] = text
+                if i < data["تعداد فروشندگان"]:
+                    data["فروشنده_index"] += 1
+                    context.bot.send_message(chat_id=chat_id, text=f"نام فروشنده شماره {i+1} را وارد کنید:")
+                else:
+                    data["step"] = 13
+                    context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران قبل از نقل و انتقال را وارد کنید:")
+                return
+            # مرحله دریافت سهامداران قبل از انتقال
+    if step == 13:
+        if not text.isdigit():
+            context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
+            return
+        count = int(text)
+        data["تعداد سهامداران قبل"] = count
+        data["سهامدار_قبل_index"] = 1
+        data["step"] = 14
+        context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار قبل شماره ۱ را وارد کنید:")
+        return
+
+    if step == 14:
+        i = data["سهامدار_قبل_index"]
+        prefix = f"سهامدار قبل {i}"
+        if f"{prefix} نام" not in data:
+            data[f"{prefix} نام"] = text
+            context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام {prefix} را وارد کنید:")
+            return
+        elif f"{prefix} تعداد" not in data:
+            data[f"{prefix} تعداد"] = text
+            if i < data["تعداد سهامداران قبل"]:
+                data["سهامدار_قبل_index"] += 1
+                context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار قبل شماره {i+1} را وارد کنید:")
+            else:
+                data["step"] = 15
+                context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران بعد از نقل و انتقال را وارد کنید:")
+            return
+
+    # مرحله دریافت سهامداران بعد از انتقال
+    if step == 15:
+        if not text.isdigit():
+            context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
+            return
+        count = int(text)
+        data["تعداد سهامداران بعد"] = count
+        data["سهامدار_بعد_index"] = 1
+        data["step"] = 16
+        context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار بعد شماره ۱ را وارد کنید:")
+        return
+
+    if step == 16:
+        i = data["سهامدار_بعد_index"]
+        prefix = f"سهامدار بعد {i}"
+        if f"{prefix} نام" not in data:
+            data[f"{prefix} نام"] = text
+            context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام {prefix} را وارد کنید:")
+            return
+        elif f"{prefix} تعداد" not in data:
+            data[f"{prefix} تعداد"] = text
+            if i < data["تعداد سهامداران بعد"]:
+                data["سهامدار_بعد_index"] += 1
+                context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار بعد شماره {i+1} را وارد کنید:")
+            else:
+                data["step"] = 17
+                context.bot.send_message(chat_id=chat_id, text="نام وکیل (شخص ثبت‌کننده صورتجلسه) را وارد کنید:")
+            return
+
+    # مرحله آخر: دریافت وکیل
+    if step == 17:
+        data["وکیل"] = text
+        send_summary(chat_id, context)  # ✅ ساخت و ارسال صورتجلسه
+        return
+
+ 
+# منطق قبلی برای سایر موارد و صورتجلسات
 
     if step == 1:
         data["نام شرکت"] = text
@@ -247,6 +428,8 @@ def send_summary(chat_id, context):
     موضوع = data.get("موضوع صورتجلسه")
     نوع_شرکت = data.get("نوع شرکت")
 
+    # کد صورتجلسه تغییر آدرس مسئولیت محدود
+    
     if موضوع == "تغییر آدرس" and نوع_شرکت == "مسئولیت محدود":
         # صورتجلسه مسئولیت محدود با لیست شرکا
         partners_lines = ""
@@ -284,8 +467,68 @@ def send_summary(chat_id, context):
             context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه.docx")
     
         os.remove(file_path)  # ← حذف فایل پس از ارسال (اختیاری)
+
     
-    elif موضوع == "تغییر آدرس" and نوع_شرکت == "سهامی خاص":
+    if موضوع == "نقل و انتقال سهام" and نوع_شرکت == "سهامی خاص":
+        text = f"""صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} ){نوع_شرکت}(
+شماره ثبت شرکت :     {data['شماره ثبت']}
+شناسه ملی :      {data['شناسه ملی']}
+سرمایه ثبت شده : {data['سرمایه']} ریال
+
+صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} ){نوع_شرکت}( ثبت شده به شماره {data['شماره ثبت']} در تاریخ  {data['تاریخ']} ساعت {data['ساعت']} با حضور کلیه سهامداران در محل قانونی شرکت تشکیل گردید و تصمیمات ذیل اتخاذ گردید.
+
+الف: در اجرای ماده 101 لایحه اصلاحی قانون تجارت: 
+ـ  {data['مدیر عامل']}                                   به سمت رئیس جلسه 
+ـ  {data['نایب رییس']}                                  به سمت ناظر 1 جلسه 
+ـ  {data['رییس']}                                        به سمت ناظر 2 جلسه 
+ـ  {data['منشی']}                         به سمت منشی جلسه انتخاب شدند
+
+ب: دستور جلسه اتخاذ تصمیم در خصوص نقل و انتقال سهام، مجمع موافقت و تصویب نمود که:"""
+
+        for i in range(1, data["تعداد فروشندگان"] + 1):
+            text += f"""
+    {data[f'فروشنده {i} نام']} به شماره ملی {data[f'فروشنده {i} کد ملی']} تعداد {data[f'فروشنده {i} تعداد']} سهم از کل سهام خود به {data[f'خریدار {i} نام']} به شماره ملی {data[f'خریدار {i} کد ملی']} به آدرس {data[f'خریدار {i} آدرس']} واگذار کرد و از شرکت خارج شد و دیگر هیچ گونه حق و سمتی ندارد."""
+
+        text += f"""
+
+مجمع به {data['وکیل']} احدی از سهامداران شرکت وکالت داده می شود که ضمن مراجعه به اداره ثبت شرکتها نسبت به ثبت صورتجلسه و پرداخت حق الثبت و امضاء ذیل دفاتر ثبت اقدام نماید. 
+
+امضاء اعضاء هیات رئیسه: 
+رئیس جلسه :  {data['مدیر عامل']}                                   ناظر1 جلسه : {data['نایب رییس']}                                
+ناظر2جلسه : {data['رییس']}                                       منشی جلسه: {data['منشی']}
+
+
+فروشندگان :"""
+        for i in range(1, data["تعداد فروشندگان"] + 1):
+            text += f" {data[f'فروشنده {i} نام']}     "
+        text += "\nخریداران :"
+        for i in range(1, data["تعداد فروشندگان"] + 1):
+            text += f" {data[f'خریدار {i} نام']}     "
+
+        # جدول سهامداران قبل
+        text += f"\n\nصورت سهامداران حاضر در مجمع عمومی (فوق العاده) مورخه {data['تاریخ']}\n{data['نام شرکت']} قبل از نقل و انتقال سهام\n"
+        text += "ردیف\tنام و نام خانوادگی\tتعداد سهام\tامضا سهامداران\n"
+        for i in range(1, data["تعداد سهامداران قبل"] + 1):
+            text += f"{i}\t{data[f'سهامدار قبل {i} نام']}\t{data[f'سهامدار قبل {i} تعداد']}\t\n"
+
+        # جدول سهامداران بعد
+        text += f"\nصورت سهامداران حاضر در مجمع عمومی (فوق العاده) مورخه {data['تاریخ']}\n{data['نام شرکت']} بعد از نقل و انتقال سهام\n"
+        text += "ردیف\tنام و نام خانوادگی\tتعداد سهام\tامضا سهامداران\n"
+        for i in range(1, data["تعداد سهامداران بعد"] + 1):
+            text += f"{i}\t{data[f'سهامدار بعد {i} نام']}\t{data[f'سهامدار بعد {i} تعداد']}\t\n"
+
+        # ارسال متن و فایل Word
+        context.bot.send_message(chat_id=chat_id, text=text)
+
+        file_path = generate_word_file(text)
+        with open(file_path, 'rb') as f:
+            context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه نقل و انتقال.docx")
+
+        os.remove(file_path)
+
+# کد صورتجلسه تغییر آدرس سهامی خاص
+    
+    if موضوع == "تغییر آدرس" and نوع_شرکت == "سهامی خاص":
         # فقط در این حالت صورتجلسه سهامی خاص را بفرست
         text = f"""صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} {data['نوع شرکت']}
 شماره ثبت شرکت : {data['شماره ثبت']}
