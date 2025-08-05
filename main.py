@@ -50,9 +50,19 @@ def show_back_button(chat_id, context):
     context.bot.send_message(chat_id=chat_id, text="اگر نیاز دارید به مرحله قبل بازگردید:", reply_markup=reply_markup)
 
 def start_transfer_process(update: Update, context: CallbackContext):
-    chat_id = update.message.chat_id
+    if update.message:
+        chat_id = update.message.chat_id
+    elif update.callback_query:
+        chat_id = update.callback_query.message.chat_id
+    else:
+        return
+
     transfer_sessions[chat_id] = {'step': 0}
-    context.bot.send_message(chat_id=chat_id, text="🔹 نام شرکت را وارد نمایید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
+    context.bot.send_message(
+        chat_id=chat_id,
+        text="🔹 نام شرکت را وارد نمایید:",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 برگشت", callback_data="BACK")]])
+    )
     return ASK_TRANSFER_FIELD
 
 def ask_transfer_field(update: Update, context: CallbackContext):
