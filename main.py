@@ -87,6 +87,9 @@ def handle_message(update: Update, context: CallbackContext):
     data = user_data[chat_id]
     step = data.get("step", 0)
 
+    موضوع = data.get("موضوع صورتجلسه")       # ✅ این دو خط رو اضافه کن
+    نوع_شرکت = data.get("نوع شرکت")          #
+
     if "موضوع صورتجلسه" not in data:
         context.bot.send_message(chat_id=chat_id, text="لطفاً ابتدا موضوع صورتجلسه را انتخاب کنید.")
         return
