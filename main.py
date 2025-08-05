@@ -65,8 +65,11 @@ def start(update: Update, context: CallbackContext):
         [InlineKeyboardButton("🔄 نقل و انتقال سهام", callback_data='نقل و انتقال سهام')],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text("💬 برای چه موضوعی صورتجلسه نیاز دارید؟
-لطفاً یکی از گزینه‌های زیر را انتخاب کنید:", reply_markup=reply_markup)
+    update.message.reply_text(
+    "💬 برای چه موضوعی صورتجلسه نیاز دارید؟\n"
+    "لطفاً یکی از گزینه‌های زیر را انتخاب کنید:",
+    reply_markup=reply_markup
+    ) 
 
 def button_handler(update: Update, context: CallbackContext):
     query = update.callback_query
