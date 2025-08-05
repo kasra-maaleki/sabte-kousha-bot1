@@ -758,6 +758,7 @@ dispatcher = updater.dispatcher
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 dispatcher.add_handler(CallbackQueryHandler(button_handler))
+dispatcher.add_handler(CallbackQueryHandler(handle_back, pattern="^BACK$"))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
