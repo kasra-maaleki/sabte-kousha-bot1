@@ -553,11 +553,8 @@ def button_handler(update: Update, context: CallbackContext):
 
         # اگر موضوع نقل و انتقال سهام و نوع شرکت سهامی خاص بود، مسیر خاص خودش اجرا بشه
         if user_data[chat_id]["موضوع صورتجلسه"] == "نقل و انتقال سهام" and query.data == "سهامی خاص":
-        return start_transfer_process(update, context)
-        context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
-        return
-
-
+            return start_transfer_process(update, context)
+        
 def generate_transfer_summary(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     data = transfer_sessions[chat_id]
