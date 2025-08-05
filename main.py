@@ -230,11 +230,11 @@ def send_transfer_summary(chat_id, context):
     d = user_data[chat_id]
     rows_before = ""
     for i in range(1, d["تعداد سهامداران قبل"] + 1):
-        rows_before += f"{i}	{d[f'سهامدار قبل {i}']}	{d[f'تعداد سهام قبل {i}']}
+        rows_before += f"{i}\t{d[f'سهامدار قبل {i}']}\t{d[f'تعداد سهام قبل {i}']}\n"
 
     rows_after = ""
     for i in range(1, d["تعداد سهامداران بعد"] + 1):
-        rows_after += f"{i}	{d[f'سهامدار بعد {i}']}	{d[f'تعداد سهام بعد {i}']}
+        rows_after += f"{i}\t{d[f'سهامدار بعد {i}']}\t{d[f'تعداد سهام بعد {i}']}\n"
 
     فروش = ""
     for i in range(1, d["تعداد فروشندگان"] + 1):
