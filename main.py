@@ -15,6 +15,7 @@ bot = telegram.Bot(token=TOKEN)
 app = Flask(__name__)
 
 user_data = {}
+transfer_sessions = {}
 
 fields = [
     "نوع شرکت", "نام شرکت", "شماره ثبت", "شناسه ملی", "سرمایه", "تاریخ", "ساعت",
