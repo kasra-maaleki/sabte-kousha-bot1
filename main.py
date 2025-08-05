@@ -419,8 +419,9 @@ def button_handler(update: Update, context: CallbackContext):
 
     if user_data[chat_id].get("step") == 0:
         user_data[chat_id]["نوع شرکت"] = query.data
-        user_data[chat_id]["step"] = 1
-        context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
+        if user_data[chat_id]["موضوع صورتجلسه"] != "نقل و انتقال سهام":
+            user_data[chat_id]["step"] = 1
+            context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
         return
 
 def send_summary(chat_id, context):
