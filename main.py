@@ -173,8 +173,8 @@ def send_summary(chat_id, context):
         for i in range(1, count + 1):
             name = data.get(f"شریک {i}", "")
             share = data.get(f"سهم الشرکه شریک {i}", "")
-            partners_lines += f"{name}                                              {share} ریال
-"
+            partners_lines += f"{name}                                              {share} ریال\\n"
+
         text = f"""صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} {نوع_شرکت}
 شماره ثبت شرکت : {data['شماره ثبت']}
 شناسه ملی : {data['شناسه ملی']}
