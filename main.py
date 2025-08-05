@@ -1,6 +1,5 @@
 import telegram
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
-from telegram.ext import ConversationHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from flask import Flask, request
 from docx import Document
@@ -42,30 +41,6 @@ persian_number_fields = ["شماره ثبت", "شناسه ملی", "سرمایه
     ASK_AFTER_SHARES,
 ) = range(100, 115)
 
-conv_handler = ConversationHandler(
-    entry_points=[MessageHandler(Filters.text & ~Filters.command, start_transfer_process)],
-    states={
-        ASK_TRANSFER_FIELD: [MessageHandler(Filters.text & ~Filters.command, ask_transfer_field)],
-        ASK_SELLER_NAME: [MessageHandler(Filters.text & ~Filters.command, ask_seller_name)],
-        ASK_SELLER_NID: [MessageHandler(Filters.text & ~Filters.command, ask_seller_nid)],
-        ASK_SELLER_SHARES: [MessageHandler(Filters.text & ~Filters.command, ask_seller_shares)],
-        ASK_SELLER_TOTAL: [MessageHandler(Filters.text & ~Filters.command, ask_seller_total)],
-        ASK_BUYER_NAME: [MessageHandler(Filters.text & ~Filters.command, ask_buyer_name)],
-        ASK_BUYER_NID: [MessageHandler(Filters.text & ~Filters.command, ask_buyer_nid)],
-        ASK_BUYER_ADDRESS: [MessageHandler(Filters.text & ~Filters.command, ask_buyer_address)],
-        ASK_MORE_SELLERS: [MessageHandler(Filters.text & ~Filters.command, ask_more_sellers)],
-        ASK_BEFORE_COUNT: [MessageHandler(Filters.text & ~Filters.command, ask_before_count)],
-        ASK_BEFORE_NAME: [MessageHandler(Filters.text & ~Filters.command, ask_before_name)],
-        ASK_BEFORE_SHARES: [MessageHandler(Filters.text & ~Filters.command, ask_before_shares)],
-        ASK_AFTER_COUNT: [MessageHandler(Filters.text & ~Filters.command, ask_after_count)],
-        ASK_AFTER_NAME: [MessageHandler(Filters.text & ~Filters.command, ask_after_name)],
-        ASK_AFTER_SHARES: [MessageHandler(Filters.text & ~Filters.command, ask_after_shares)],
-    },
-    fallbacks=[CallbackQueryHandler(handle_back, pattern='^BACK$')],
-)
-
-dispatcher.add_handler(conv_handler)
-
 def is_persian_number(text):
     return all('۰' <= ch <= '۹' or ch.isspace() for ch in text)
 
@@ -77,7 +52,7 @@ def show_back_button(chat_id, context):
 def start_transfer_process(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     transfer_sessions[chat_id] = {'step': 0}
-    context.bot.send_message(chat_id=chat_id, text="🔹 نام شرکت را وارد نمایید:")
+    context.bot.send_message(chat_id=chat_id, text="🔹 نام شرکت را وارد نمایید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
     return ASK_TRANSFER_FIELD
 
 def ask_transfer_field(update: Update, context: CallbackContext):
@@ -90,54 +65,54 @@ def ask_transfer_field(update: Update, context: CallbackContext):
     ]
     answers.append(update.message.text.strip())
     if len(answers) < len(fields):
-        context.bot.send_message(chat_id=chat_id, text=f"🔹 {fields[len(answers)]} را وارد نمایید:")
+        context.bot.send_message(chat_id=chat_id, text=f"🔹 {fields[len(answers, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )]} را وارد نمایید:")
         return ASK_TRANSFER_FIELD
     else:
         session.update(dict(zip(fields, answers)))
         session['sellers'] = []
-        context.bot.send_message(chat_id=chat_id, text="🔸 نام فروشنده شماره ۱ را وارد کنید:")
+        context.bot.send_message(chat_id=chat_id, text="🔸 نام فروشنده شماره ۱ را وارد کنید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
         return ASK_SELLER_NAME
 
 def ask_seller_name(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     session = transfer_sessions[chat_id]
     session['current_seller'] = {'seller': update.message.text.strip()}
-    context.bot.send_message(chat_id=chat_id, text="🔹 کد ملی فروشنده را وارد نمایید:")
+    context.bot.send_message(chat_id=chat_id, text="🔹 کد ملی فروشنده را وارد نمایید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
     return ASK_SELLER_NID
 
 def ask_seller_nid(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     session = transfer_sessions[chat_id]
     session['current_seller']['seller_national_id'] = update.message.text.strip()
-    context.bot.send_message(chat_id=chat_id, text="🔹 تعداد سهام واگذار شده را وارد نمایید:")
+    context.bot.send_message(chat_id=chat_id, text="🔹 تعداد سهام واگذار شده را وارد نمایید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
     return ASK_SELLER_SHARES
 
 def ask_seller_shares(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     session = transfer_sessions[chat_id]
     session['current_seller']['shares'] = int(update.message.text.strip())
-    context.bot.send_message(chat_id=chat_id, text="🔹 مجموع سهام این فروشنده قبل از انتقال:")
+    context.bot.send_message(chat_id=chat_id, text="🔹 مجموع سهام این فروشنده قبل از انتقال:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
     return ASK_SELLER_TOTAL
 
 def ask_seller_total(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     session = transfer_sessions[chat_id]
     session['current_seller']['total_shares'] = int(update.message.text.strip())
-    context.bot.send_message(chat_id=chat_id, text="🔹 نام خریدار را وارد نمایید:")
+    context.bot.send_message(chat_id=chat_id, text="🔹 نام خریدار را وارد نمایید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
     return ASK_BUYER_NAME
 
 def ask_buyer_name(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     session = transfer_sessions[chat_id]
     session['current_seller']['buyer'] = update.message.text.strip()
-    context.bot.send_message(chat_id=chat_id, text="🔹 کد ملی خریدار را وارد نمایید:")
+    context.bot.send_message(chat_id=chat_id, text="🔹 کد ملی خریدار را وارد نمایید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
     return ASK_BUYER_NID
 
 def ask_buyer_nid(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     session = transfer_sessions[chat_id]
     session['current_seller']['buyer_national_id'] = update.message.text.strip()
-    context.bot.send_message(chat_id=chat_id, text="🔹 آدرس خریدار را وارد نمایید:")
+    context.bot.send_message(chat_id=chat_id, text="🔹 آدرس خریدار را وارد نمایید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
     return ASK_BUYER_ADDRESS
 
 def ask_buyer_address(update: Update, context: CallbackContext):
@@ -146,20 +121,20 @@ def ask_buyer_address(update: Update, context: CallbackContext):
     session['current_seller']['buyer_address'] = update.message.text.strip()
     session.setdefault('sellers', []).append(session['current_seller'])
     del session['current_seller']
-    context.bot.send_message(chat_id=chat_id, text="آیا فروشنده دیگری وجود دارد؟ (بله / خیر)")
+    context.bot.send_message(chat_id=chat_id, text="آیا فروشنده دیگری وجود دارد؟ (بله / خیر, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )")
     return ASK_MORE_SELLERS
 
 def ask_more_sellers(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     text = update.message.text.strip()
     if text == "بله":
-        context.bot.send_message(chat_id=chat_id, text="🔸 نام فروشنده بعدی را وارد نمایید:")
+        context.bot.send_message(chat_id=chat_id, text="🔸 نام فروشنده بعدی را وارد نمایید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
         return ASK_SELLER_NAME
     elif text == "خیر":
-        context.bot.send_message(chat_id=chat_id, text="🔸 چند سهامدار قبل از نقل و انتقال وجود دارد؟ (عدد وارد کنید)")
+        context.bot.send_message(chat_id=chat_id, text="🔸 چند سهامدار قبل از نقل و انتقال وجود دارد؟ (عدد وارد کنید, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )")
         return ASK_BEFORE_COUNT
     else:
-        context.bot.send_message(chat_id=chat_id, text="❗ لطفاً فقط یکی از گزینه‌های «بله» یا «خیر» را وارد نمایید.")
+        context.bot.send_message(chat_id=chat_id, text="❗ لطفاً فقط یکی از گزینه‌های «بله» یا «خیر» را وارد نمایید.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
         return ASK_MORE_SELLERS
 
 def ask_before_count(update: Update, context: CallbackContext):
@@ -168,20 +143,20 @@ def ask_before_count(update: Update, context: CallbackContext):
     count = update.message.text.strip()
 
     if not count.isdigit():
-        context.bot.send_message(chat_id=chat_id, text="❗ لطفاً فقط عدد وارد نمایید:")
+        context.bot.send_message(chat_id=chat_id, text="❗ لطفاً فقط عدد وارد نمایید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
         return ASK_BEFORE_COUNT
 
     session['before_count'] = int(count)
     session['before_index'] = 1
     session['before_shareholders'] = []
-    context.bot.send_message(chat_id=chat_id, text="🔹 نام سهامدار شماره 1 (قبل از نقل و انتقال) را وارد نمایید:")
+    context.bot.send_message(chat_id=chat_id, text="🔹 نام سهامدار شماره 1 (قبل از نقل و انتقال, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) ) را وارد نمایید:")
     return ASK_BEFORE_NAME
 
 def ask_before_name(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     session = transfer_sessions[chat_id]
     session['current_before'] = {'name': update.message.text.strip()}
-    context.bot.send_message(chat_id=chat_id, text="🔹 تعداد سهام این سهامدار را وارد نمایید:")
+    context.bot.send_message(chat_id=chat_id, text="🔹 تعداد سهام این سهامدار را وارد نمایید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
     return ASK_BEFORE_SHARES
 
 def ask_before_shares(update: Update, context: CallbackContext):
@@ -194,10 +169,10 @@ def ask_before_shares(update: Update, context: CallbackContext):
     session['before_index'] += 1
 
     if session['before_index'] <= session['before_count']:
-        context.bot.send_message(chat_id=chat_id, text=f"🔹 نام سهامدار شماره {session['before_index']} (قبل از نقل و انتقال) را وارد نمایید:")
+        context.bot.send_message(chat_id=chat_id, text=f"🔹 نام سهامدار شماره {session['before_index']} (قبل از نقل و انتقال, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) ) را وارد نمایید:")
         return ASK_BEFORE_NAME
     else:
-        context.bot.send_message(chat_id=chat_id, text="🔸 چند سهامدار بعد از نقل و انتقال وجود دارد؟ (عدد وارد کنید)")
+        context.bot.send_message(chat_id=chat_id, text="🔸 چند سهامدار بعد از نقل و انتقال وجود دارد؟ (عدد وارد کنید, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )")
         return ASK_AFTER_COUNT
 
 def ask_after_count(update: Update, context: CallbackContext):
@@ -206,20 +181,20 @@ def ask_after_count(update: Update, context: CallbackContext):
     count = update.message.text.strip()
 
     if not count.isdigit():
-        context.bot.send_message(chat_id=chat_id, text="❗ لطفاً فقط عدد وارد نمایید:")
+        context.bot.send_message(chat_id=chat_id, text="❗ لطفاً فقط عدد وارد نمایید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
         return ASK_AFTER_COUNT
 
     session['after_count'] = int(count)
     session['after_index'] = 1
     session['after_shareholders'] = []
-    context.bot.send_message(chat_id=chat_id, text="🔹 نام سهامدار شماره 1 (بعد از نقل و انتقال) را وارد نمایید:")
+    context.bot.send_message(chat_id=chat_id, text="🔹 نام سهامدار شماره 1 (بعد از نقل و انتقال, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) ) را وارد نمایید:")
     return ASK_AFTER_NAME
 
 def ask_after_name(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     session = transfer_sessions[chat_id]
     session['current_after'] = {'name': update.message.text.strip()}
-    context.bot.send_message(chat_id=chat_id, text="🔹 تعداد سهام این سهامدار را وارد نمایید:")
+    context.bot.send_message(chat_id=chat_id, text="🔹 تعداد سهام این سهامدار را وارد نمایید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
     return ASK_AFTER_SHARES
 
 def ask_after_shares(update: Update, context: CallbackContext):
@@ -232,7 +207,7 @@ def ask_after_shares(update: Update, context: CallbackContext):
     session['after_index'] += 1
 
     if session['after_index'] <= session['after_count']:
-        context.bot.send_message(chat_id=chat_id, text=f"🔹 نام سهامدار شماره {session['after_index']} (بعد از نقل و انتقال) را وارد نمایید:")
+        context.bot.send_message(chat_id=chat_id, text=f"🔹 نام سهامدار شماره {session['after_index']} (بعد از نقل و انتقال, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) ) را وارد نمایید:")
         return ASK_AFTER_NAME
     else:
         return generate_transfer_summary(update, context)
@@ -276,18 +251,18 @@ def ask_current_question(chat_id, context):
     step = data["step"]
 
     if step == 1:
-        context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
+        context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
     elif 2 <= step <= 9:
         field = common_fields[step - 1]
-        context.bot.send_message(chat_id=chat_id, text=get_label(field))
+        context.bot.send_message(chat_id=chat_id, text=get_label(field, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) ))
     elif step == 10:
-        context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (بین ۲ تا ۷):")
+        context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (بین ۲ تا ۷, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) ):")
     elif step > 10:
         current_partner = data.get("current_partner", 1)
         if f"شریک {current_partner}" not in data:
-            context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {current_partner} را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {current_partner} را وارد کنید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
         else:
-            context.bot.send_message(chat_id=chat_id, text=f"میزان سهم الشرکه شریک شماره {current_partner} را وارد کنید (عدد فارسی):")
+            context.bot.send_message(chat_id=chat_id, text=f"میزان سهم الشرکه شریک شماره {current_partner} را وارد کنید (عدد فارسی, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) ):")
 
 def generate_word_file(text: str, filepath: str = None):
     doc = Document()
@@ -351,7 +326,7 @@ def handle_message(update: Update, context: CallbackContext):
     step = data.get("step", 0)
 
     if "موضوع صورتجلسه" not in data:
-        context.bot.send_message(chat_id=chat_id, text="لطفاً ابتدا موضوع صورتجلسه را انتخاب کنید.")
+        context.bot.send_message(chat_id=chat_id, text="لطفاً ابتدا موضوع صورتجلسه را انتخاب کنید.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
         return
 
     # تعریف فیلدهای پایه برای تغییر آدرس مسئولیت محدود
@@ -362,7 +337,7 @@ def handle_message(update: Update, context: CallbackContext):
         if step == 1:
             data["نام شرکت"] = text
             data["step"] = 2
-            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
             return
 
         if 2 <= step <= 9:
@@ -370,37 +345,37 @@ def handle_message(update: Update, context: CallbackContext):
 
             if field == "تاریخ":
                 if text.count('/') != 2:
-                    context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. لطفاً به صورت ۱۴۰۴/۰۴/۰۷ وارد کنید (با دو /).")
+                    context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. لطفاً به صورت ۱۴۰۴/۰۴/۰۷ وارد کنید (با دو /, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) ).")
                     return
 
             if field in persian_number_fields:
                 if not is_persian_number(text):
-                    context.bot.send_message(chat_id=chat_id, text=f"لطفاً مقدار '{field}' را فقط با اعداد فارسی وارد کنید.")
+                    context.bot.send_message(chat_id=chat_id, text=f"لطفاً مقدار '{field}' را فقط با اعداد فارسی وارد کنید.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
                     return
 
             data[field] = text
             data["step"] += 1
 
             if step == 9:
-                context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (بین ۲ تا ۷):")
+                context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (بین ۲ تا ۷, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) ):")
                 return
             else:
                 next_field = common_fields[step]
-                context.bot.send_message(chat_id=chat_id, text=get_label(next_field))
+                context.bot.send_message(chat_id=chat_id, text=get_label(next_field, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) ))
                 return
 
         if step == 10:
             if not text.isdigit():
-                context.bot.send_message(chat_id=chat_id, text="❗️لطفاً تعداد شرکا را فقط با عدد وارد کنید (بین ۲ تا ۷).")
+                context.bot.send_message(chat_id=chat_id, text="❗️لطفاً تعداد شرکا را فقط با عدد وارد کنید (بین ۲ تا ۷, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) ).")
                 return
             count = int(text)
             if count < 2 or count > 7:
-                context.bot.send_message(chat_id=chat_id, text="❗️تعداد شرکا باید بین ۲ تا ۷ باشد. لطفاً مجدداً وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️تعداد شرکا باید بین ۲ تا ۷ باشد. لطفاً مجدداً وارد کنید.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
                 return
             data["تعداد شرکا"] = count
             data["step"] += 1
             data["current_partner"] = 1
-            context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره ۱ را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره ۱ را وارد کنید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
             return
 
         if step > 10:
@@ -409,16 +384,16 @@ def handle_message(update: Update, context: CallbackContext):
 
             if f"شریک {current_partner}" not in data:
                 data[f"شریک {current_partner}"] = text
-                context.bot.send_message(chat_id=chat_id, text=f"میزان سهم الشرکه شریک شماره {current_partner} را به ریال وارد کنید (عدد فارسی):")
+                context.bot.send_message(chat_id=chat_id, text=f"میزان سهم الشرکه شریک شماره {current_partner} را به ریال وارد کنید (عدد فارسی, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) ):")
                 return
             elif f"سهم الشرکه شریک {current_partner}" not in data:
                 if not is_persian_number(text):
-                    context.bot.send_message(chat_id=chat_id, text="❗️لطفاً میزان سهم الشرکه را فقط با اعداد فارسی وارد کنید.")
+                    context.bot.send_message(chat_id=chat_id, text="❗️لطفاً میزان سهم الشرکه را فقط با اعداد فارسی وارد کنید.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
                     return
                 data[f"سهم الشرکه شریک {current_partner}"] = text
                 if current_partner < count:
                     data["current_partner"] = current_partner + 1
-                    context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {current_partner + 1} را وارد کنید:")
+                    context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {current_partner + 1} را وارد کنید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
                     return
                 else:
                     send_summary(chat_id, context)
@@ -431,67 +406,67 @@ def handle_message(update: Update, context: CallbackContext):
             transfer_sessions[chat_id] = {}
             transfer_sessions[chat_id]["نام شرکت"] = text
             data["step"] = 2
-            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
             return
 
         if step == 2:
             transfer_sessions[chat_id]["شماره ثبت"] = text
             data["step"] = 3
-            context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
             return
 
         if step == 3:
             transfer_sessions[chat_id]["شناسه ملی"] = text
             data["step"] = 4
-            context.bot.send_message(chat_id=chat_id, text="سرمایه ثبت شده شرکت را وارد کنید (عدد فارسی):")
+            context.bot.send_message(chat_id=chat_id, text="سرمایه ثبت شده شرکت را وارد کنید (عدد فارسی, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) ):")
             return
 
         if step == 4:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
                 return
             transfer_sessions[chat_id]["سرمایه ثبت شده (ریال)"] = text
             data["step"] = 5
-            context.bot.send_message(chat_id=chat_id, text="تاریخ جلسه را وارد کنید (مثلاً ۱۴۰۴/۰۴/۰۷):")
+            context.bot.send_message(chat_id=chat_id, text="تاریخ جلسه را وارد کنید (مثلاً ۱۴۰۴/۰۴/۰۷, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) ):")
             return
 
         if step == 5:
             if text.count("/") != 2:
-                context.bot.send_message(chat_id=chat_id, text="❗️تاریخ را با فرمت صحیح وارد کنید (۱۴۰۴/۰۴/۰۷).")
+                context.bot.send_message(chat_id=chat_id, text="❗️تاریخ را با فرمت صحیح وارد کنید (۱۴۰۴/۰۴/۰۷, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) ).")
                 return
             transfer_sessions[chat_id]["تاریخ جلسه"] = text
             data["step"] = 6
-            context.bot.send_message(chat_id=chat_id, text="ساعت جلسه را وارد کنید (مثلاً ۱۰:۰۰):")
+            context.bot.send_message(chat_id=chat_id, text="ساعت جلسه را وارد کنید (مثلاً ۱۰:۰۰, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) ):")
             return
 
         if step == 6:
             transfer_sessions[chat_id]["ساعت جلسه"] = text
             data["step"] = 7
-            context.bot.send_message(chat_id=chat_id, text="نام مدیر عامل را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text="نام مدیر عامل را وارد کنید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
             return
 
         if step == 7:
             transfer_sessions[chat_id]["مدیر عامل"] = text
             data["step"] = 8
-            context.bot.send_message(chat_id=chat_id, text="نام نایب رئیس جلسه را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text="نام نایب رئیس جلسه را وارد کنید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
             return
 
         if step == 8:
             transfer_sessions[chat_id]["نایب رییس"] = text
             data["step"] = 9
-            context.bot.send_message(chat_id=chat_id, text="نام رئیس جلسه را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text="نام رئیس جلسه را وارد کنید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
             return
 
         if step == 9:
             transfer_sessions[chat_id]["رییس جلسه"] = text
             data["step"] = 10
-            context.bot.send_message(chat_id=chat_id, text="نام منشی جلسه را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text="نام منشی جلسه را وارد کنید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
             return
 
         if step == 10:
             transfer_sessions[chat_id]["منشی"] = text
             data["step"] = 11
-            context.bot.send_message(chat_id=chat_id, text="نام وکیل برای ثبت در اداره ثبت شرکت‌ها را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text="نام وکیل برای ثبت در اداره ثبت شرکت‌ها را وارد کنید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
             return
 
         if step == 11:
@@ -506,11 +481,11 @@ def handle_message(update: Update, context: CallbackContext):
         data["step"] = 2
         next_field = fields[2]
         label = get_label(next_field)
-        context.bot.send_message(chat_id=chat_id, text=label)
+        context.bot.send_message(chat_id=chat_id, text=label, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
         return
 
     if step == 0:
-        context.bot.send_message(chat_id=chat_id, text="لطفاً نوع شرکت را از گزینه‌های ارائه شده انتخاب کنید.")
+        context.bot.send_message(chat_id=chat_id, text="لطفاً نوع شرکت را از گزینه‌های ارائه شده انتخاب کنید.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
         return
 
     if 2 <= step < len(fields):
@@ -518,12 +493,12 @@ def handle_message(update: Update, context: CallbackContext):
 
         if field == "تاریخ":
             if text.count('/') != 2:
-                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. لطفاً به صورت ۱۴۰۴/۰۴/۰۷ وارد کنید (با دو /).")
+                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. لطفاً به صورت ۱۴۰۴/۰۴/۰۷ وارد کنید (با دو /, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) ).")
                 return
 
         if field in persian_number_fields:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text=f"لطفاً مقدار '{field}' را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text=f"لطفاً مقدار '{field}' را فقط با اعداد فارسی وارد کنید.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
                 return
 
         data[field] = text
@@ -531,12 +506,12 @@ def handle_message(update: Update, context: CallbackContext):
         if data["step"] < len(fields):
             next_field = fields[data["step"]]
             label = get_label(next_field)
-            context.bot.send_message(chat_id=chat_id, text=label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
         else:
             send_summary(chat_id, context)
         return
 
-    context.bot.send_message(chat_id=chat_id, text="لطفاً منتظر بمانید...")
+    context.bot.send_message(chat_id=chat_id, text="لطفاً منتظر بمانید...", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
 
 def get_label(field):
     labels = {
@@ -579,13 +554,13 @@ def button_handler(update: Update, context: CallbackContext):
         # اگر موضوع نقل و انتقال سهام و نوع شرکت سهامی خاص بود، مسیر خاص خودش اجرا بشه
         if user_data[chat_id]["موضوع صورتجلسه"] == "نقل و انتقال سهام" and query.data == "سهامی خاص":
             transfer_sessions[chat_id] = {}
-            context.bot.send_message(chat_id=chat_id, text="لطفاً نام شرکت را وارد نمایید:")
+            context.bot.send_message(chat_id=chat_id, text="لطفاً نام شرکت را وارد نمایید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
             user_data[chat_id]["step"] = 1
             return
 
         # در غیر این صورت، مسیر عمومی (مثلاً برای تغییر آدرس و بقیه) اجرا بشه
         user_data[chat_id]["step"] = 1
-        context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
+        context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
         return
 
 
@@ -682,7 +657,7 @@ def generate_transfer_summary(update: Update, context: CallbackContext):
 
     # ساخت فایل Word
     path = generate_word_file(text)
-    context.bot.send_message(chat_id=chat_id, text="✅ صورتجلسه آماده شد. فایل Word زیر را دریافت کنید:")
+    context.bot.send_message(chat_id=chat_id, text="✅ صورتجلسه آماده شد. فایل Word زیر را دریافت کنید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
     context.bot.send_document(chat_id=chat_id, document=open(path, 'rb'))
 
     return ConversationHandler.END
@@ -726,7 +701,7 @@ def send_summary(chat_id, context):
         for i in range(1, count + 1):
             signers += f"{data.get(f'شریک {i}', '')}     "
         text += signers
-        context.bot.send_message(chat_id=chat_id, text=text)
+        context.bot.send_message(chat_id=chat_id, text=text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
         
         # ✅ ساخت فایل Word و ارسال
         file_path = generate_word_file(text)
@@ -758,7 +733,7 @@ def send_summary(chat_id, context):
 امضاء اعضاء هیات رئیسه: 
 رئیس جلسه : {data['مدیر عامل']}     ناظر1 جلسه : {data['نایب رییس']}     
 ناظر2 جلسه : {data['رییس']}         منشی جلسه: {data['منشی']}"""
-        context.bot.send_message(chat_id=chat_id, text=text)
+        context.bot.send_message(chat_id=chat_id, text=text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
 
         # ✅ ساخت فایل Word و ارسال
         file_path = generate_word_file(text)
@@ -769,7 +744,7 @@ def send_summary(chat_id, context):
 
     else:
         # در سایر موارد فعلاً چیزی ارسال نشود
-        context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات با موفقیت دریافت شد.\nدر حال حاضر صورتجلسه‌ای برای این ترکیب تعریف نشده است.")
+        context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات با موفقیت دریافت شد.\nدر حال حاضر صورتجلسه‌ای برای این ترکیب تعریف نشده است.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -783,7 +758,32 @@ dispatcher = updater.dispatcher
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 dispatcher.add_handler(CallbackQueryHandler(button_handler))
-dispatcher.add_handler(CallbackQueryHandler(handle_back, pattern="^BACK$"))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+
+from telegram.ext import ConversationHandler
+
+conv_handler = ConversationHandler(
+    entry_points=[MessageHandler(Filters.text & ~Filters.command, start_transfer_process)],
+    states={
+        ASK_TRANSFER_FIELD: [MessageHandler(Filters.text & ~Filters.command, ask_transfer_field)],
+        ASK_SELLER_NAME: [MessageHandler(Filters.text & ~Filters.command, ask_seller_name)],
+        ASK_SELLER_NID: [MessageHandler(Filters.text & ~Filters.command, ask_seller_nid)],
+        ASK_SELLER_SHARES: [MessageHandler(Filters.text & ~Filters.command, ask_seller_shares)],
+        ASK_SELLER_TOTAL: [MessageHandler(Filters.text & ~Filters.command, ask_seller_total)],
+        ASK_BUYER_NAME: [MessageHandler(Filters.text & ~Filters.command, ask_buyer_name)],
+        ASK_BUYER_NID: [MessageHandler(Filters.text & ~Filters.command, ask_buyer_nid)],
+        ASK_BUYER_ADDRESS: [MessageHandler(Filters.text & ~Filters.command, ask_buyer_address)],
+        ASK_MORE_SELLERS: [MessageHandler(Filters.text & ~Filters.command, ask_more_sellers)],
+        ASK_BEFORE_COUNT: [MessageHandler(Filters.text & ~Filters.command, ask_before_count)],
+        ASK_BEFORE_NAME: [MessageHandler(Filters.text & ~Filters.command, ask_before_name)],
+        ASK_BEFORE_SHARES: [MessageHandler(Filters.text & ~Filters.command, ask_before_shares)],
+        ASK_AFTER_COUNT: [MessageHandler(Filters.text & ~Filters.command, ask_after_count)],
+        ASK_AFTER_NAME: [MessageHandler(Filters.text & ~Filters.command, ask_after_name)],
+        ASK_AFTER_SHARES: [MessageHandler(Filters.text & ~Filters.command, ask_after_shares)],
+    },
+    fallbacks=[CallbackQueryHandler(handle_back, pattern='^BACK$')]
+)
+
+dispatcher.add_handler(conv_handler)
