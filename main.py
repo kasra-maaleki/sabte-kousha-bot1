@@ -55,12 +55,11 @@ def start(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     user_data[chat_id] = {"step": 0}
     update.message.reply_text(
-        "به خدمات ثبتی کوشا خوش آمدید 🙏🏼
-"
-        "در کمتر از چند دقیقه، صورتجلسه رسمی و دقیق شرکت خود را آماده دریافت خواهید کرد.
-"
-        "همه‌چیز طبق آخرین قوانین ثبت شرکت‌ها تنظیم می‌شود."
+    "به خدمات ثبتی کوشا خوش آمدید 🙏🏼\n"
+    "در کمتر از چند دقیقه، صورتجلسه رسمی و دقیق شرکت خود را آماده دریافت خواهید کرد.\n"
+    "همه‌چیز طبق آخرین قوانین ثبت شرکت‌ها تنظیم می‌شود."
     )
+
     keyboard = [
         [InlineKeyboardButton("🏢 تغییر آدرس", callback_data='تغییر آدرس')],
         [InlineKeyboardButton("🔄 نقل و انتقال سهام", callback_data='نقل و انتقال سهام')],
@@ -84,9 +83,11 @@ def button_handler(update: Update, context: CallbackContext):
             [InlineKeyboardButton("مسئولیت محدود", callback_data='مسئولیت محدود')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        context.bot.send_message(chat_id=chat_id, text=f"موضوع صورتجلسه انتخاب شد: {query.data}
-
-نوع شرکت را انتخاب کنید:", reply_markup=reply_markup)
+        context.bot.send_message(
+            chat_id=chat_id,
+            text=f"موضوع صورتجلسه انتخاب شد: {query.data}\n\nنوع شرکت را انتخاب کنید:",
+            reply_markup=reply_markup
+        )
         return
     if user_data[chat_id].get("step") == 0:
         user_data[chat_id]["نوع شرکت"] = query.data
