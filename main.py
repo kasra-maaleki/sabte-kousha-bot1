@@ -231,17 +231,14 @@ def send_transfer_summary(chat_id, context):
     rows_before = ""
     for i in range(1, d["تعداد سهامداران قبل"] + 1):
         rows_before += f"{i}	{d[f'سهامدار قبل {i}']}	{d[f'تعداد سهام قبل {i}']}
-"
 
     rows_after = ""
     for i in range(1, d["تعداد سهامداران بعد"] + 1):
         rows_after += f"{i}	{d[f'سهامدار بعد {i}']}	{d[f'تعداد سهام بعد {i}']}
-"
 
     فروش = ""
     for i in range(1, d["تعداد فروشندگان"] + 1):
         فروش += f"{d[f'فروشنده {i}']} به شماره ملی {d[f'کد ملی فروشنده {i}']} تعداد {d[f'تعداد سهام منتقل شده {i}']} سهم از کل سهام خود به {d[f'خریدار {i}']} به شماره ملی {d[f'کد ملی خریدار {i}']} به آدرس {d[f'آدرس خریدار {i}']} واگذار کرد و از شرکت خارج شد و دیگر هیچ گونه حق و سمتی ندارد.
-"
 
     text = f"""
 صورتجلسه مجمع عمومی فوق العاده شرکت {d['نام شرکت']} ){d['نوع شرکت']}(
@@ -273,7 +270,7 @@ def send_transfer_summary(chat_id, context):
 {d['نام شرکت']} بعد از نقل و انتقال سهام
 ردیف	نام و نام خانوادگی	تعداد سهام	امضا سهامداران
 {rows_after} 
-"""
+
     context.bot.send_message(chat_id=chat_id, text=text)
     file_path = generate_word_file(text)
     with open(file_path, 'rb') as f:
