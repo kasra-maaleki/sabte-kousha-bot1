@@ -553,9 +553,7 @@ def button_handler(update: Update, context: CallbackContext):
 
         # اگر موضوع نقل و انتقال سهام و نوع شرکت سهامی خاص بود، مسیر خاص خودش اجرا بشه
         if user_data[chat_id]["موضوع صورتجلسه"] == "نقل و انتقال سهام" and query.data == "سهامی خاص":
-            transfer_sessions[chat_id] = {}
-            context.bot.send_message(chat_id=chat_id, text="لطفاً نام شرکت را وارد نمایید:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 برگشت', callback_data='BACK')]]) )
-            user_data[chat_id]["step"] = 1
+        return start_transfer_process(update, context)
             return
 
         # در غیر این صورت، مسیر عمومی (مثلاً برای تغییر آدرس و بقیه) اجرا بشه
