@@ -91,7 +91,8 @@ def handle_message(update: Update, context: CallbackContext):
 
     data = user_data[chat_id]
     step = data.get("step", 0)
-
+    step_str = str(step)
+    
     if isinstance(step, int):
         step_str = str(step)
     else:
