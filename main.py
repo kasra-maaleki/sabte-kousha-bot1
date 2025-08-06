@@ -91,12 +91,6 @@ def handle_message(update: Update, context: CallbackContext):
 
     data = user_data[chat_id]
     step = data.get("step", 0)
-    step_str = str(step)
-    
-    if isinstance(step, int):
-        step_str = str(step)
-    else:
-        step_str = step
     
     موضوع = data.get("موضوع صورتجلسه")       # ✅ این دو خط رو اضافه کن
     نوع_شرکت = data.get("نوع شرکت")          #
@@ -299,9 +293,8 @@ def handle_message(update: Update, context: CallbackContext):
                 return
 
         # مرحله تعیین تعداد خریداران برای هر فروشنده
-  
-        if step_str.startswith("خریدار_tedad_"):
-            i = int(step_str.split("_")[-1])
+
+        if step == 13:
             if not text.isdigit():
                 context.bot.send_message(chat_id=chat_id, text="❗️تعداد خریداران را با عدد وارد کنید.")
                 return
@@ -309,17 +302,17 @@ def handle_message(update: Update, context: CallbackContext):
             if count < 1:
                 context.bot.send_message(chat_id=chat_id, text="❗️حداقل یک خریدار لازم است.")
                 return
+            i = data["فروشنده_index"]
             data[f"تعداد خریداران {i}"] = count
             data[f"خریدار_index_{i}"] = 1
-            data["step"] = f"خریدار_{i}_1"
+            data["step"] = 14
             context.bot.send_message(chat_id=chat_id, text=f"نام خریدار شماره ۱ از فروشنده {i} را وارد کنید:")
             return
 
-        if step_str.startswith("خریدار_"):
-            parts = step_str.split("_")
-            i = int(parts[1])  # شماره فروشنده
-            k = int(parts[2])  # شماره خریدار
-
+        if step == 14:
+            i = data["فروشنده_index"]
+            k = data[f"خریدار_index_{i}"]
+        
             if f"خریدار {i}-{k} نام" not in data:
                 data[f"خریدار {i}-{k} نام"] = text
                 context.bot.send_message(chat_id=chat_id, text=f"کد ملی خریدار {k} از فروشنده {i} را وارد کنید:")
@@ -332,32 +325,33 @@ def handle_message(update: Update, context: CallbackContext):
                 data[f"خریدار {i}-{k} آدرس"] = text
                 total = data[f"تعداد خریداران {i}"]
                 if k < total:
-                    data["step"] = f"خریدار_{i}_{k+1}"
+                    data[f"خریدار_index_{i}"] += 1
                     context.bot.send_message(chat_id=chat_id, text=f"نام خریدار شماره {k+1} از فروشنده {i} را وارد کنید:")
+                    return
                 else:
-                    # تمام خریداران فروشنده i وارد شده‌اند
+                    # همه خریداران ثبت شدن
                     if i < data["تعداد فروشندگان"]:
                         data["فروشنده_index"] += 1
-                        data["step"] = 12
+                        data["step"] = 12  # برمی‌گردیم به مرحله نام فروشنده جدید
                         context.bot.send_message(chat_id=chat_id, text=f"نام فروشنده شماره {i+1} را وارد کنید:")
                     else:
-                        data["step"] = 13
+                        data["step"] = 15  # مرحله بعد از خریداران (مثلاً سهامداران قبل)
                         context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران قبل از نقل و انتقال را وارد کنید:")
-                return
+                    return
                 
             # مرحله دریافت سهامداران قبل از انتقال
-    if step == 13:
+    if step == 15:
         if not text.isdigit():
             context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
             return
         count = int(text)
         data["تعداد سهامداران قبل"] = count
         data["سهامدار_قبل_index"] = 1
-        data["step"] = 14
+        data["step"] = 16
         context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار قبل شماره ۱ را وارد کنید:")
         return
 
-    if step == 14:
+    if step == 16:
         i = data["سهامدار_قبل_index"]
         prefix = f"سهامدار قبل {i}"
         if f"{prefix} نام" not in data:
@@ -370,23 +364,23 @@ def handle_message(update: Update, context: CallbackContext):
                 data["سهامدار_قبل_index"] += 1
                 context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار قبل شماره {i+1} را وارد کنید:")
             else:
-                data["step"] = 15
+                data["step"] = 17
                 context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران بعد از نقل و انتقال را وارد کنید:")
             return
 
     # مرحله دریافت سهامداران بعد از انتقال
-    if step == 15:
+    if step == 17:
         if not text.isdigit():
             context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
             return
         count = int(text)
         data["تعداد سهامداران بعد"] = count
         data["سهامدار_بعد_index"] = 1
-        data["step"] = 16
+        data["step"] = 18
         context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار بعد شماره ۱ را وارد کنید:")
         return
 
-    if step == 16:
+    if step == 18:
         i = data["سهامدار_بعد_index"]
         prefix = f"سهامدار بعد {i}"
         if f"{prefix} نام" not in data:
@@ -399,12 +393,12 @@ def handle_message(update: Update, context: CallbackContext):
                 data["سهامدار_بعد_index"] += 1
                 context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار بعد شماره {i+1} را وارد کنید:")
             else:
-                data["step"] = 17
+                data["step"] = 19
                 context.bot.send_message(chat_id=chat_id, text="نام وکیل (شخص ثبت‌کننده صورتجلسه) را وارد کنید:")
             return
 
     # مرحله آخر: دریافت وکیل
-    if step == 17:
+    if step == 19:
         data["وکیل"] = text
         send_summary(chat_id, context)  # ✅ ساخت و ارسال صورتجلسه
         return
