@@ -92,6 +92,11 @@ def handle_message(update: Update, context: CallbackContext):
     data = user_data[chat_id]
     step = data.get("step", 0)
 
+    if isinstance(step, int):
+        step_str = str(step)
+    else:
+        step_str = step
+    
     موضوع = data.get("موضوع صورتجلسه")       # ✅ این دو خط رو اضافه کن
     نوع_شرکت = data.get("نوع شرکت")          #
 
@@ -293,7 +298,7 @@ def handle_message(update: Update, context: CallbackContext):
                 return
 
         # مرحله تعیین تعداد خریداران برای هر فروشنده
-        if str(step).startswith("خریدار_tedad_"):
+        if step_str.startswith("خریدار_tedad_"):
             i = int(step.split("_")[-1])
             if not text.isdigit():
                 context.bot.send_message(chat_id=chat_id, text="❗️تعداد خریداران را با عدد وارد کنید.")
@@ -309,7 +314,7 @@ def handle_message(update: Update, context: CallbackContext):
             return
 
         # مرحله دریافت مشخصات خریدارهای هر فروشنده به‌صورت داینامیک
-        if str(step).startswith("خریدار_"):
+        if step_str.startswith("خریدار_"):
             parts = step.split("_")
             i = int(parts[1])  # شماره فروشنده
             k = int(parts[2])  # شماره خریدار
