@@ -476,7 +476,7 @@ def send_summary(chat_id, context):
             context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه.docx")
     
         os.remove(file_path)  # ← حذف فایل پس از ارسال (اختیاری)
-
+        return
     
     if موضوع == "نقل و انتقال سهام" and نوع_شرکت == "سهامی خاص":
         text = f"""صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} ){نوع_شرکت}(
@@ -534,7 +534,7 @@ def send_summary(chat_id, context):
             context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه نقل و انتقال.docx")
 
         os.remove(file_path)
-
+        return
 # کد صورتجلسه تغییر آدرس سهامی خاص
     
     if موضوع == "تغییر آدرس" and نوع_شرکت == "سهامی خاص":
@@ -568,9 +568,10 @@ def send_summary(chat_id, context):
             context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه.docx")
     
         os.remove(file_path)  # ← حذف فایل پس از ارسال (اختیاری)
+        return
 
     else:
-        # در سایر موارد فعلاً چیزی ارسال نشود
+        # اگر هیچ‌کدام از حالت‌های بالا نبود:
         context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات با موفقیت دریافت شد.\nدر حال حاضر صورتجلسه‌ای برای این ترکیب تعریف نشده است.")
 
 @app.route('/webhook', methods=['POST'])
