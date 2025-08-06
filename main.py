@@ -287,11 +287,11 @@ def handle_message(update: Update, context: CallbackContext):
                 data[f"{prefix} نام"] = text
                 context.bot.send_message(chat_id=chat_id, text=f"کد ملی {prefix} را وارد کنید:")
                 return
-            elif f"{prefix} کد ملی" not in data:
+            if f"{prefix} کد ملی" not in data:
                 data[f"{prefix} کد ملی"] = text
                 context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام منتقل‌شده توسط {prefix} را وارد کنید:")
                 return
-            elif f"{prefix} تعداد" not in data:
+            if f"{prefix} تعداد" not in data:
                 data[f"{prefix} تعداد"] = text
                 context.bot.send_message(chat_id=chat_id, text="تعداد خریداران برای این فروشنده را وارد کنید:")
                 data["خریدار_index"] = 1
@@ -299,51 +299,51 @@ def handle_message(update: Update, context: CallbackContext):
                 return
 
         # مرحله تعیین تعداد خریداران برای هر فروشنده
-            if step_str.startswith("خریدار_tedad_"):
-                i = int(step.split("_")[-1])
-                if not text.isdigit():
-                    context.bot.send_message(chat_id=chat_id, text="❗️تعداد خریداران را با عدد وارد کنید.")
-                    return
-                count = int(text)
-                if count < 1:
-                    context.bot.send_message(chat_id=chat_id, text="❗️حداقل یک خریدار لازم است.")
-                    return
-                data[f"تعداد خریداران {i}"] = count
-                data[f"خریدار_index_{i}"] = 1
-                data["step"] = f"خریدار_{i}_1"
-                context.bot.send_message(chat_id=chat_id, text=f"نام خریدار شماره ۱ از فروشنده {i} را وارد کنید:")
+  
+        if step_str.startswith("خریدار_tedad_"):
+            i = int(step_str.split("_")[-1])
+            if not text.isdigit():
+                context.bot.send_message(chat_id=chat_id, text="❗️تعداد خریداران را با عدد وارد کنید.")
                 return
-    
-            # مرحله دریافت مشخصات خریدارهای هر فروشنده به‌صورت داینامیک
-            if step_str.startswith("خریدار_"):
-                parts = step.split("_")
-                i = int(parts[1])  # شماره فروشنده
-                k = int(parts[2])  # شماره خریدار
-    
-                if f"خریدار {i}-{k} نام" not in data:
-                    data[f"خریدار {i}-{k} نام"] = text
-                    context.bot.send_message(chat_id=chat_id, text=f"کد ملی خریدار {k} از فروشنده {i} را وارد کنید:")
-                    return
-                elif f"خریدار {i}-{k} کد ملی" not in data:
-                    data[f"خریدار {i}-{k} کد ملی"] = text
-                    context.bot.send_message(chat_id=chat_id, text=f"آدرس خریدار {k} از فروشنده {i} را وارد کنید:")
-                    return
-                elif f"خریدار {i}-{k} آدرس" not in data:
-                    data[f"خریدار {i}-{k} آدرس"] = text
-                    total = data[f"تعداد خریداران {i}"]
-                    if k < total:
-                        data["step"] = f"خریدار_{i}_{k+1}"
-                        context.bot.send_message(chat_id=chat_id, text=f"نام خریدار شماره {k+1} از فروشنده {i} را وارد کنید:")
+            count = int(text)
+            if count < 1:
+                context.bot.send_message(chat_id=chat_id, text="❗️حداقل یک خریدار لازم است.")
+                return
+            data[f"تعداد خریداران {i}"] = count
+            data[f"خریدار_index_{i}"] = 1
+            data["step"] = f"خریدار_{i}_1"
+            context.bot.send_message(chat_id=chat_id, text=f"نام خریدار شماره ۱ از فروشنده {i} را وارد کنید:")
+            return
+
+        if step_str.startswith("خریدار_"):
+            parts = step_str.split("_")
+            i = int(parts[1])  # شماره فروشنده
+            k = int(parts[2])  # شماره خریدار
+
+            if f"خریدار {i}-{k} نام" not in data:
+                data[f"خریدار {i}-{k} نام"] = text
+                context.bot.send_message(chat_id=chat_id, text=f"کد ملی خریدار {k} از فروشنده {i} را وارد کنید:")
+                return
+            elif f"خریدار {i}-{k} کد ملی" not in data:
+                data[f"خریدار {i}-{k} کد ملی"] = text
+                context.bot.send_message(chat_id=chat_id, text=f"آدرس خریدار {k} از فروشنده {i} را وارد کنید:")
+                return
+            elif f"خریدار {i}-{k} آدرس" not in data:
+                data[f"خریدار {i}-{k} آدرس"] = text
+                total = data[f"تعداد خریداران {i}"]
+                if k < total:
+                    data["step"] = f"خریدار_{i}_{k+1}"
+                    context.bot.send_message(chat_id=chat_id, text=f"نام خریدار شماره {k+1} از فروشنده {i} را وارد کنید:")
+                else:
+                    # تمام خریداران فروشنده i وارد شده‌اند
+                    if i < data["تعداد فروشندگان"]:
+                        data["فروشنده_index"] += 1
+                        data["step"] = 12
+                        context.bot.send_message(chat_id=chat_id, text=f"نام فروشنده شماره {i+1} را وارد کنید:")
                     else:
-                        # تمام خریداران فروشنده i وارد شده‌اند
-                        if i < data["تعداد فروشندگان"]:
-                            data["فروشنده_index"] += 1
-                            data["step"] = 12
-                            context.bot.send_message(chat_id=chat_id, text=f"نام فروشنده شماره {i+1} را وارد کنید:")
-                        else:
-                            data["step"] = 13
-                            context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران قبل از نقل و انتقال را وارد کنید:")
-                    return
+                        data["step"] = 13
+                        context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران قبل از نقل و انتقال را وارد کنید:")
+                return
                 
             # مرحله دریافت سهامداران قبل از انتقال
     if step == 13:
