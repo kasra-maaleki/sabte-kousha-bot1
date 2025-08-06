@@ -285,11 +285,10 @@ def handle_message(update: Update, context: CallbackContext):
                 data[f"{prefix} کد ملی"] = text
                 context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام منتقل‌شده توسط {prefix} را وارد کنید:")
                 return
-            if f"{prefix} تعداد" not in data:
+            elif f"{prefix} تعداد" not in data:
                 data[f"{prefix} تعداد"] = text
                 context.bot.send_message(chat_id=chat_id, text="تعداد خریداران برای این فروشنده را وارد کنید:")
-                data["خریدار_index"] = 1
-                data["step"] = f"خریدار_tedad_{i}"
+                data["step"] = 13
                 return
 
         # مرحله تعیین تعداد خریداران برای هر فروشنده
