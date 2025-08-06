@@ -179,13 +179,19 @@ def handle_message(update: Update, context: CallbackContext):
             return
 
         if step == 2:
-            data["شماره ثبت"] = text
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.")
+                return
+            data["\u0634\u0645\u0627\u0631\u0647 \u062b\u0628\u062a"] = text
             data["step"] = 3
             context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید:")
             return
 
         if step == 3:
-            data["شناسه ملی"] = text
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.")
+                return
+            data["\u0634\u0646\u0627سه \u0645لی"] = text
             data["step"] = 4
             context.bot.send_message(chat_id=chat_id, text="سرمایه شرکت به ریال را وارد کنید (عدد فارسی):")
             return
@@ -205,11 +211,18 @@ def handle_message(update: Update, context: CallbackContext):
                 return
             data["تاریخ"] = text
             data["step"] = 6
-            context.bot.send_message(chat_id=chat_id, text="ساعت جلسه را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text="ساعت جلسه را وارد کنید :")
             return
 
         if step == 6:
-            data["ساعت"] = text
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.")
+                return
+            saat = int(fa_to_en_number(text))
+            if saat < 8 or saat > 17:
+                context.bot.send_message(chat_id=chat_id, text="❗️ساعت جلسه باید بین ۸ تا ۱۷ باشد.")
+                return
+            data["\u0633اعت"] = text
             data["step"] = 7
             context.bot.send_message(chat_id=chat_id, text="مدیر عامل (رئیس جلسه) را وارد کنید:")
             return
@@ -217,16 +230,22 @@ def handle_message(update: Update, context: CallbackContext):
         if step == 7:
             data["مدیر عامل"] = text
             data["step"] = 8
-            context.bot.send_message(chat_id=chat_id, text="نایب رئیس جلسه را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text="ناظر اول جلسه را وارد کنید (از بین اعضای هیئت مدیره):")
             return
 
         if step == 8:
+            if text == data["مدیر عامل"]:
+                context.bot.send_message(chat_id=chat_id, text="❗️ناظر اول نمی‌تواند با مدیر عامل یکی باشد. لطفاً شخص دیگری را انتخاب کنید.")
+                return
             data["نایب رییس"] = text
             data["step"] = 9
-            context.bot.send_message(chat_id=chat_id, text="ناظر دوم جلسه را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text="ناظر دوم جلسه را وارد کنید (از بین اعضای هیئت مدیره):")
             return
 
         if step == 9:
+            if text == data["مدیر عامل"] or text == data["نایب رییس"]:
+                context.bot.send_message(chat_id=chat_id, text="❗️ناظر دوم نمی‌تواند با مدیر عامل یا ناظر اول یکی باشد. لطفاً شخص دیگری را انتخاب کنید.")
+                return
             data["رییس"] = text
             data["step"] = 10
             context.bot.send_message(chat_id=chat_id, text="منشی جلسه را وارد کنید:")
@@ -238,16 +257,20 @@ def handle_message(update: Update, context: CallbackContext):
             context.bot.send_message(chat_id=chat_id, text="تعداد فروشندگان را وارد کنید:")
             return
 
+        
         # شروع دریافت فروشندگان
         if step == 11:
             if not text.isdigit():
-                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️تعداد فروشندگان را با عدد وارد کنید.")
                 return
             count = int(text)
+            if count < 1:
+                context.bot.send_message(chat_id=chat_id, text="❗️حداقل یک فروشنده باید وجود داشته باشد.")
+                return
             data["تعداد فروشندگان"] = count
             data["فروشنده_index"] = 1
             data["step"] = 12
-            context.bot.send_message(chat_id=chat_id, text=f"نام فروشنده شماره ۱ را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text="نام فروشنده شماره ۱ را وارد کنید:")
             return
 
         if step >= 12 and data.get("فروشنده_index", 0) <= data.get("تعداد فروشندگان", 0):
@@ -264,25 +287,58 @@ def handle_message(update: Update, context: CallbackContext):
                 return
             elif f"{prefix} تعداد" not in data:
                 data[f"{prefix} تعداد"] = text
-                context.bot.send_message(chat_id=chat_id, text=f"نام خریدار {i} را وارد کنید:")
+                context.bot.send_message(chat_id=chat_id, text="تعداد خریداران برای این فروشنده را وارد کنید:")
+                data["خریدار_index"] = 1
+                data["step"] = f"خریدار_tedad_{i}"
                 return
-            elif f"خریدار {i} نام" not in data:
-                data[f"خریدار {i} نام"] = text
-                context.bot.send_message(chat_id=chat_id, text=f"کد ملی خریدار {i} را وارد کنید:")
+
+        # مرحله تعیین تعداد خریداران برای هر فروشنده
+        if isinstance(step, str) and step.startswith("خریدار_tedad_"):
+            i = int(step.split("_")[-1])
+            if not text.isdigit():
+                context.bot.send_message(chat_id=chat_id, text="❗️تعداد خریداران را با عدد وارد کنید.")
                 return
-            elif f"خریدار {i} کد ملی" not in data:
-                data[f"خریدار {i} کد ملی"] = text
-                context.bot.send_message(chat_id=chat_id, text=f"آدرس خریدار {i} را وارد کنید:")
+            count = int(text)
+            if count < 1:
+                context.bot.send_message(chat_id=chat_id, text="❗️حداقل یک خریدار لازم است.")
                 return
-            elif f"خریدار {i} آدرس" not in data:
-                data[f"خریدار {i} آدرس"] = text
-                if i < data["تعداد فروشندگان"]:
-                    data["فروشنده_index"] += 1
-                    context.bot.send_message(chat_id=chat_id, text=f"نام فروشنده شماره {i+1} را وارد کنید:")
+            data[f"تعداد خریداران {i}"] = count
+            data[f"خریدار_index_{i}"] = 1
+            data["step"] = f"خریدار_{i}_1"
+            context.bot.send_message(chat_id=chat_id, text=f"نام خریدار شماره ۱ از فروشنده {i} را وارد کنید:")
+            return
+
+        # مرحله دریافت مشخصات خریدارهای هر فروشنده به‌صورت داینامیک
+        if isinstance(step, str) and step.startswith("خریدار_"):
+            parts = step.split("_")
+            i = int(parts[1])  # شماره فروشنده
+            k = int(parts[2])  # شماره خریدار
+
+            if f"خریدار {i}-{k} نام" not in data:
+                data[f"خریدار {i}-{k} نام"] = text
+                context.bot.send_message(chat_id=chat_id, text=f"کد ملی خریدار {k} از فروشنده {i} را وارد کنید:")
+                return
+            elif f"خریدار {i}-{k} کد ملی" not in data:
+                data[f"خریدار {i}-{k} کد ملی"] = text
+                context.bot.send_message(chat_id=chat_id, text=f"آدرس خریدار {k} از فروشنده {i} را وارد کنید:")
+                return
+            elif f"خریدار {i}-{k} آدرس" not in data:
+                data[f"خریدار {i}-{k} آدرس"] = text
+                total = data[f"تعداد خریداران {i}"]
+                if k < total:
+                    data["step"] = f"خریدار_{i}_{k+1}"
+                    context.bot.send_message(chat_id=chat_id, text=f"نام خریدار شماره {k+1} از فروشنده {i} را وارد کنید:")
                 else:
-                    data["step"] = 13
-                    context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران قبل از نقل و انتقال را وارد کنید:")
+                    # تمام خریداران فروشنده i وارد شده‌اند
+                    if i < data["تعداد فروشندگان"]:
+                        data["فروشنده_index"] += 1
+                        data["step"] = 12
+                        context.bot.send_message(chat_id=chat_id, text=f"نام فروشنده شماره {i+1} را وارد کنید:")
+                    else:
+                        data["step"] = 13
+                        context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران قبل از نقل و انتقال را وارد کنید:")
                 return
+                
             # مرحله دریافت سهامداران قبل از انتقال
     if step == 13:
         if not text.isdigit():
