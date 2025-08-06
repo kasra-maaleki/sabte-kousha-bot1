@@ -2,6 +2,7 @@ import telegram
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from flask import Flask, request
+from collections import defaultdict
 from docx import Document
 from docx.shared import Pt
 from docx.oxml.ns import qn
@@ -479,12 +480,12 @@ def send_summary(chat_id, context):
         return
 
     if موضوع == "نقل و انتقال سهام" and نوع_شرکت == "سهامی خاص":
-        text = f"""صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} ){نوع_شرکت}(
+        text = f"""صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} ({نوع_شرکت})  
     شماره ثبت شرکت :     {data['شماره ثبت']}
     شناسه ملی :      {data['شناسه ملی']}
     سرمایه ثبت شده : {data['سرمایه']} ریال
 
-    صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} ){نوع_شرکت}( ثبت شده به شماره {data['شماره ثبت']} در تاریخ  {data['تاریخ']} ساعت {data['ساعت']} با حضور کلیه سهامداران در محل قانونی شرکت تشکیل گردید و تصمیمات ذیل اتخاذ گردید.
+    صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} ({نوع_شرکت}) ثبت شده به شماره {data['شماره ثبت']} در تاریخ  {data['تاریخ']} ساعت {data['ساعت']} با حضور کلیه سهامداران در محل قانونی شرکت تشکیل گردید و تصمیمات ذیل اتخاذ گردید.
 
     الف: در اجرای ماده 101 لایحه اصلاحی قانون تجارت: 
     ـ  {data['مدیر عامل']}                                   به سمت رئیس جلسه 
@@ -494,18 +495,18 @@ def send_summary(chat_id, context):
 
     ب: دستور جلسه اتخاذ تصمیم در خصوص نقل و انتقال سهام، مجمع موافقت و تصویب نمود که:"""
 
-        # ✅ تبدیل اعداد فارسی به انگلیسی
+        # تبدیل اعداد فارسی به انگلیسی
         def fa_to_en_number(text):
             table = str.maketrans('۰۱۲۳۴۵۶۷۸۹', '0123456789')
             return text.translate(table)
 
         from collections import defaultdict
 
-        فروشندگان_تجمیعی = defaultdict(list)
+        foroshandeha_tajmi = defaultdict(list)
 
         for i in range(1, data["تعداد فروشندگان"] + 1):
-            نام = data[f'فروشنده {i} نام']
-            فروشندگان_تجمیعی[نام].append({
+            nam = data[f'فروشنده {i} نام']
+            foroshandeha_tajmi[nam].append({
                 "کد ملی": data[f'فروشنده {i} کد ملی'],
                 "تعداد": data[f'فروشنده {i} تعداد'],
                 "خریدار": data[f'خریدار {i} نام'],
@@ -513,34 +514,34 @@ def send_summary(chat_id, context):
                 "آدرس خریدار": data[f'خریدار {i} آدرس']
             })
 
-        for نام_فروشنده, واگذاری‌ها in فروشندگان_تجمیعی.items():
-            کد_ملی_فروشنده = واگذاری‌ها[0]["کد ملی"]
-            متن_واگذاری = f"\n    {نام_فروشنده} به شماره ملی {کد_ملی_فروشنده} "
+        for nam_forooshande, vaghzari_ha in foroshandeha_tajmi.items():
+            kod_meli_forooshande = vaghzari_ha[0]["کد ملی"]
+            matn = f"\n    {nam_forooshande} به شماره ملی {kod_meli_forooshande} "
 
-            عبارات = []
-            مجموع_منتقل = 0
-            for واگذاری in واگذاری‌ها:
-                تعداد = int(fa_to_en_number(واگذاری["تعداد"]))
-                مجموع_منتقل += تعداد
-                عبارات.append(
-                    f"تعداد {واگذاری['تعداد']} سهم به {واگذاری['خریدار']} به شماره ملی {واگذاری['کد ملی خریدار']} به آدرس {واگذاری['آدرس خریدار']}"
+            jomalat = []
+            majmoo_montaghel = 0
+            for item in vaghzari_ha:
+                tedad = int(fa_to_en_number(item["تعداد"]))
+                majmoo_montaghel += tedad
+                jomalat.append(
+                    f"تعداد {item['تعداد']} سهم به {item['خریدار']} به شماره ملی {item['کد ملی خریدار']} به آدرس {item['آدرس خریدار']}"
                 )
 
-            متن_واگذاری += " و همچنین ".join(عبارات)
-            متن_واگذاری += " واگذار کرد"
+            matn += " و همچنین ".join(jomalat)
+            matn += " واگذار کرد"
 
-            مجموع_سهم_قبل = 0
+            majmoo_saham_qabl = 0
             for j in range(1, data["تعداد سهامداران قبل"] + 1):
-                if data[f"سهامدار قبل {j} نام"] == نام_فروشنده:
-                    مجموع_سهم_قبل = int(fa_to_en_number(data[f"سهامدار قبل {j} تعداد"]))
+                if data[f"سهامدار قبل {j} نام"] == nam_forooshande:
+                    majmoo_saham_qabl = int(fa_to_en_number(data[f"سهامدار قبل {j} تعداد"]))
                     break
 
-            if مجموع_منتقل == مجموع_سهم_قبل:
-                متن_واگذاری += " و از شرکت خارج شد و دیگر هیچ گونه حق و سمتی ندارد."
+            if majmoo_montaghel == majmoo_saham_qabl:
+                matn += " و از شرکت خارج شد و دیگر هیچ گونه حق و سمتی ندارد."
 
-            text += متن_واگذاری
+            text += matn
 
-        text += f"""
+         text += f"""
 
     مجمع به {data['وکیل']} احدی از سهامداران شرکت وکالت داده می شود که ضمن مراجعه به اداره ثبت شرکتها نسبت به ثبت صورتجلسه و پرداخت حق الثبت و امضاء ذیل دفاتر ثبت اقدام نماید. 
 
@@ -550,12 +551,14 @@ def send_summary(chat_id, context):
 
 
     فروشندگان :"""
-        for نام_فروشنده in فروشندگان_تجمیعی:
-            text += f" {نام_فروشنده}     "
+        for nam_forooshande in foroshandeha_tajmi:
+            text += f" {nam_forooshande}     "
+
         text += "\nخریداران :"
-        for واگذاری‌ها in فروشندگان_تجمیعی.values():
-            for واگذاری in واگذاری‌ها:
-                text += f" {واگذاری['خریدار']}     "        
+        for vaghzari_ha in foroshandeha_tajmi.values():
+            for item in vaghzari_ha:
+                text += f" {item['خریدار']}     "
+    
     
         # جدول سهامداران قبل
         text += f"\n\nصورت سهامداران حاضر در مجمع عمومی (فوق العاده) مورخه {data['تاریخ']}\n{data['نام شرکت']} قبل از نقل و انتقال سهام\n"
