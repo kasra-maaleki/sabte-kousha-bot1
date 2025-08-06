@@ -27,6 +27,10 @@ persian_number_fields = ["شماره ثبت", "شناسه ملی", "سرمایه
 def is_persian_number(text):
     return all('۰' <= ch <= '۹' or ch.isspace() for ch in text)
 
+def fa_to_en_number(text):
+    table = str.maketrans('۰۱۲۳۴۵۶۷۸۹', '0123456789')
+    return text.translate(table)
+
 def generate_word_file(text: str, filepath: str = None):
     doc = Document()
 
@@ -541,7 +545,7 @@ def send_summary(chat_id, context):
 
             text += matn
 
-         text += f"""
+        text += f"""
 
     مجمع به {data['وکیل']} احدی از سهامداران شرکت وکالت داده می شود که ضمن مراجعه به اداره ثبت شرکتها نسبت به ثبت صورتجلسه و پرداخت حق الثبت و امضاء ذیل دفاتر ثبت اقدام نماید. 
 
