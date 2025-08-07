@@ -182,7 +182,7 @@ def handle_message(update: Update, context: CallbackContext):
             if not is_persian_number(text):
                 context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.")
                 return
-            data["\u0634\u0645\u0627\u0631\u0647 \u062b\u0628\u062a"] = text
+            data["شماره ثبت"] = text
             data["step"] = 3
             context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید:")
             return
@@ -191,7 +191,7 @@ def handle_message(update: Update, context: CallbackContext):
             if not is_persian_number(text):
                 context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.")
                 return
-            data["\u0634\u0646\u0627سه \u0645لی"] = text
+            data["شناسه ملی"] = text
             data["step"] = 4
             context.bot.send_message(chat_id=chat_id, text="سرمایه شرکت به ریال را وارد کنید (عدد فارسی):")
             return
