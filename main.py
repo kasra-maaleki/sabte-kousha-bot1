@@ -574,13 +574,16 @@ def send_summary(chat_id, context):
 
         for i in range(1, data["تعداد فروشندگان"] + 1):
             nam = data[f'فروشنده {i} نام']
-            foroshandeha_tajmi[nam].append({
-                "کد ملی": data[f'فروشنده {i} کد ملی'],
-                "تعداد": data[f'فروشنده {i} تعداد'],
-                "خریدار": data[f'خریدار {i} نام'],
-                "کد ملی خریدار": data[f'خریدار {i} کد ملی'],
-                "آدرس خریدار": data[f'خریدار {i} آدرس']
-            })
+            kodmeli = data[f'فروشنده {i} کد ملی']
+            tedad = data[f'فروشنده {i} تعداد']
+            for j in range(1, data.get(f"تعداد خریداران {i}", 0) + 1):
+                foroshandeha_tajmi[nam].append({
+                    "کد ملی": kodmeli,
+                    "تعداد": tedad,
+                    "خریدار": data.get(f'خریدار {i}-{j} نام', ''),
+                    "کد ملی خریدار": data.get(f'خریدار {i}-{j} کد ملی', ''),
+                    "آدرس خریدار": data.get(f'خریدار {i}-{j} آدرس', '')
+                })
 
         for nam_forooshande, vaghzari_ha in foroshandeha_tajmi.items():
             kod_meli_forooshande = vaghzari_ha[0]["کد ملی"]
