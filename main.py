@@ -167,7 +167,11 @@ def handle_message(update: Update, context: CallbackContext):
                     return
                 else:
                     send_summary(chat_id, context)
+                    data["step"] = 11
                     return
+                    
+        if step >= 11:
+        context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات قبلاً ثبت شده است. برای شروع مجدد /start را ارسال کنید.")
         return
    
 
@@ -400,6 +404,11 @@ def handle_message(update: Update, context: CallbackContext):
     if step == 19:
         data["وکیل"] = text
         send_summary(chat_id, context)  # ✅ ساخت و ارسال صورتجلسه
+        data["step"] = 20
+        return
+
+    if step >= 20:
+        context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات قبلاً ثبت شده است. برای شروع مجدد /start را ارسال کنید.")
         return
 
  
