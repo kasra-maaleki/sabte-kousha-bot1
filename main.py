@@ -222,7 +222,7 @@ def handle_message(update: Update, context: CallbackContext):
             if saat < 8 or saat > 17:
                 context.bot.send_message(chat_id=chat_id, text="❗️ساعت جلسه باید بین ۸ تا ۱۷ باشد.")
                 return
-            data["\u0633اعت"] = text
+            data["ساعت"] = text
             data["step"] = 7
             context.bot.send_message(chat_id=chat_id, text="مدیر عامل (رئیس جلسه) را وارد کنید:")
             return
