@@ -171,8 +171,8 @@ def handle_message(update: Update, context: CallbackContext):
                     return
                     
         if step >= 11:
-        context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات قبلاً ثبت شده است. برای شروع مجدد /start را ارسال کنید.")
-        return
+            context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات قبلاً ثبت شده است. برای شروع مجدد /start را ارسال کنید.")
+            return
    
 
     if موضوع == "نقل و انتقال سهام" and نوع_شرکت == "سهامی خاص":
