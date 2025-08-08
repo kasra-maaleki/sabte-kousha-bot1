@@ -96,7 +96,7 @@ def handle_message(update: Update, context: CallbackContext):
     نوع_شرکت = data.get("نوع شرکت")          #
 
     if "موضوع صورتجلسه" not in data:
-        context.bot.send_message(chat_id=chat_id, text="لطفاً ابتدا موضوع صورتجلسه را انتخاب کنید.")
+        context.bot.send_message(chat_id=chat_id, text="لطفاً ابتدا موضوع صورتجلسه را انتخاب کنید. برای شروع مجدد /start را ارسال کنید .")
         return
 
     # تعریف فیلدهای پایه برای تغییر آدرس مسئولیت محدود
@@ -173,7 +173,84 @@ def handle_message(update: Update, context: CallbackContext):
         if step >= 11:
             context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات قبلاً ثبت شده است. برای شروع مجدد /start را ارسال کنید.")
             return
-   
+
+        # ✅ صورتجلسه تغییر موضوع فعالیت - مسئولیت محدود
+    if data.get("موضوع صورتجلسه") == "تغییر موضوع فعالیت" and data.get("نوع شرکت") == "مسئولیت محدود":
+        if step == 1:
+            data["نام شرکت"] = text
+            data["step"] = 2
+            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:")
+            return
+    
+        if step == 2:
+            data["شماره ثبت"] = text
+            data["step"] = 3
+            context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید:")
+            return
+    
+        if step == 3:
+            data["شناسه ملی"] = text
+            data["step"] = 4
+            context.bot.send_message(chat_id=chat_id, text="سرمایه شرکت را به ریال وارد کنید:")
+            return
+    
+        if step == 4:
+            data["سرمایه"] = text
+            data["step"] = 5
+            context.bot.send_message(chat_id=chat_id, text="تاریخ صورتجلسه را وارد کنید (مثلاً: ۱۴۰۴/۰۵/۱۵):")
+            return
+    
+        if step == 5:
+            data["تاریخ"] = text
+            data["step"] = 6
+            context.bot.send_message(chat_id=chat_id, text="ساعت جلسه را وارد کنید:")
+            return
+    
+        if step == 6:
+            data["ساعت"] = text
+            data["step"] = 7
+            context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید:")
+            return
+    
+        if step == 7:
+            if not text.isdigit():
+                context.bot.send_message(chat_id=chat_id, text="❗️تعداد شرکا را با عدد وارد کنید.")
+                return
+            count = int(text)
+            data["تعداد شرکا"] = count
+            data["current_partner"] = 1
+            data["step"] = 8
+            context.bot.send_message(chat_id=chat_id, text="نام شریک شماره ۱ را وارد کنید:")
+            return
+    
+        if step >= 8:
+            i = data["current_partner"]
+            if f"شریک {i}" not in data:
+                data[f"شریک {i}"] = text
+                context.bot.send_message(chat_id=chat_id, text=f"سهم الشرکه شریک شماره {i} را وارد کنید:")
+                return
+            elif f"سهم الشرکه شریک {i}" not in data:
+                data[f"سهم الشرکه شریک {i}"] = text
+                if i < data["تعداد شرکا"]:
+                    data["current_partner"] += 1
+                    context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {i+1} را وارد کنید:")
+                else:
+                    data["step"] = 999  # کد خاص برای گرفتن موضوع جدید
+                    context.bot.send_message(chat_id=chat_id, text="موضوع جدید فعالیت شرکت را وارد کنید:")
+                return
+    
+    # دریافت موضوع جدید
+    if step == 999:
+        data["موضوع جدید"] = text
+        data["step"] = 1000
+        context.bot.send_message(chat_id=chat_id, text="نام وکیل (شخص ثبت‌کننده صورتجلسه) را وارد کنید:")
+        return
+    
+    if step == 1000:
+        data["وکیل"] = text
+        send_summary(chat_id, context)
+        return
+
 
     if موضوع == "نقل و انتقال سهام" and نوع_شرکت == "سهامی خاص":
         if step == 1:
@@ -652,7 +729,8 @@ def send_summary(chat_id, context):
 
         os.remove(file_path)
         return
-# کد صورتجلسه تغییر آدرس سهامی خاص
+
+    # کد صورتجلسه تغییر آدرس سهامی خاص
     
     if موضوع == "تغییر آدرس" and نوع_شرکت == "سهامی خاص":
         # فقط در این حالت صورتجلسه سهامی خاص را بفرست
@@ -685,6 +763,42 @@ def send_summary(chat_id, context):
             context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه.docx")
     
         os.remove(file_path)  # ← حذف فایل پس از ارسال (اختیاری)
+        return
+
+    if موضوع == "تغییر موضوع فعالیت" and نوع_شرکت == "مسئولیت محدود":
+        count = data["تعداد شرکا"]
+        lines = ""
+        signers = ""
+        for i in range(1, count + 1):
+            name = data.get(f"شریک {i}", "")
+            share = data.get(f"سهم الشرکه شریک {i}", "")
+            lines += f"{name}                                              {share} ریال\n"
+            signers += f"{name}\t"
+    
+        text = f"""صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} ({نوع_شرکت})
+    شماره ثبت شرکت :     {data['شماره ثبت']}
+    شناسه ملی :      {data['شناسه ملی']}
+    سرمایه ثبت شده : {data['سرمایه']} ریال
+    
+    صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} ({نوع_شرکت}) ثبت شده به شماره {data['شماره ثبت']} در تاریخ  {data['تاریخ']} ساعت {data['ساعت']} با حضور کلیه شرکا در محل قانونی شرکت تشکیل و نسبت به الحاق مواردی به موضوع شرکت اتخاذ تصمیم شد.
+    
+    اسامی شرکا                                                        میزان سهم الشرکه
+    {lines}
+    مواردی به شرح ذیل به موضوع شرکت الحاق شد:
+    {data['موضوع جدید']}
+    و ماده مربوطه اساسنامه به شرح فوق اصلاح می گردد.
+    
+    به {data['وکیل']} از شرکاء شرکت وکالت داده می شود که ضمن مراجعه به اداره ثبت شرکت ها نسبت به ثبت صورتجلسه و پرداخت حق الثبت و امضاء ذیل دفاتر ثبت اقدام نماید.
+    
+    امضاء شرکاء: 
+    {signers}"""
+    
+        context.bot.send_message(chat_id=chat_id, text=text)
+    
+        file_path = generate_word_file(text)
+        with open(file_path, 'rb') as f:
+            context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه تغییر موضوع فعالیت.docx")
+        os.remove(file_path)
         return
 
     else:
