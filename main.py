@@ -614,21 +614,21 @@ def button_handler(update: Update, context: CallbackContext):
         context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
         return
 
-        if data.get("step") == 10:
-            انتخاب = query.data
-            query.answer()
+    if data.get("موضوع صورتجلسه") == "تغییر موضوع فعالیت" and data.get("step") == 10:
+        انتخاب = query.data
+        query.answer()
     
-            if انتخاب == "الحاق":
-                data["نوع تغییر موضوع"] = "الحاق"
-            elif انتخاب == "جایگزین":
-                data["نوع تغییر موضوع"] = "جایگزین"
-            else:
-                context.bot.send_message(chat_id=chat_id, text="❗️انتخاب نامعتبر بود.")
-                return
-    
-            data["step"] = 11
-            context.bot.send_message(chat_id=chat_id, text="موضوع جدید فعالیت شرکت را وارد کنید:")
+        if انتخاب == "الحاق":
+            data["نوع تغییر موضوع"] = "الحاق"
+        elif انتخاب == "جایگزین":
+            data["نوع تغییر موضوع"] = "جایگزین"
+        else:
+            context.bot.send_message(chat_id=chat_id, text="❗️انتخاب نامعتبر بود.")
             return
+    
+        data["step"] = 11
+        context.bot.send_message(chat_id=chat_id, text="موضوع جدید فعالیت شرکت را وارد کنید:")
+        return
 
 def send_summary(chat_id, context):
     data = user_data[chat_id]
