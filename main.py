@@ -175,46 +175,61 @@ def handle_message(update: Update, context: CallbackContext):
             return
 
         # ✅ صورتجلسه تغییر موضوع فعالیت - مسئولیت محدود
-    if data.get("موضوع صورتجلسه") == "تغییر موضوع فعالیت" and data.get("نوع شرکت") == "مسئولیت محدود":
+    if موضوع == "تغییر موضوع فعالیت" and نوع_شرکت == "مسئولیت محدود":
         if step == 1:
             data["نام شرکت"] = text
             data["step"] = 2
             context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:")
             return
-    
+
         if step == 2:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.")
+                return
             data["شماره ثبت"] = text
             data["step"] = 3
             context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید:")
             return
-    
+
         if step == 3:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.")
+                return
             data["شناسه ملی"] = text
             data["step"] = 4
-            context.bot.send_message(chat_id=chat_id, text="سرمایه شرکت را به ریال وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text="سرمایه شرکت به ریال را وارد کنید (اعداد فارسی):")
             return
-    
+
         if step == 4:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.")
+                return
             data["سرمایه"] = text
             data["step"] = 5
             context.bot.send_message(chat_id=chat_id, text="تاریخ صورتجلسه را وارد کنید (مثلاً: ۱۴۰۴/۰۵/۱۵):")
             return
-    
+
         if step == 5:
+            if text.count('/') != 2:
+                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.")
+                return
             data["تاریخ"] = text
             data["step"] = 6
             context.bot.send_message(chat_id=chat_id, text="ساعت جلسه را وارد کنید:")
             return
-    
+
         if step == 6:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.")
+                return
             data["ساعت"] = text
             data["step"] = 7
             context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید:")
             return
-    
+
         if step == 7:
             if not text.isdigit():
-                context.bot.send_message(chat_id=chat_id, text="❗️تعداد شرکا را با عدد وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
                 return
             count = int(text)
             data["تعداد شرکا"] = count
@@ -222,31 +237,51 @@ def handle_message(update: Update, context: CallbackContext):
             data["step"] = 8
             context.bot.send_message(chat_id=chat_id, text="نام شریک شماره ۱ را وارد کنید:")
             return
-    
-        if step >= 8:
+
+        if step == 8:
             i = data["current_partner"]
-            if f"شریک {i}" not in data:
-                data[f"شریک {i}"] = text
-                context.bot.send_message(chat_id=chat_id, text=f"سهم الشرکه شریک شماره {i} را وارد کنید:")
+            data[f"شریک {i}"] = text
+            data["step"] = 9
+            context.bot.send_message(chat_id=chat_id, text=f"سهم الشرکه شریک شماره {i} را وارد کنید (عدد فارسی):")
+            return
+
+        if step == 9:
+            i = data["current_partner"]
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️سهم الشرکه را فقط با اعداد فارسی وارد کنید.")
                 return
-            elif f"سهم الشرکه شریک {i}" not in data:
-                data[f"سهم الشرکه شریک {i}"] = text
-                if i < data["تعداد شرکا"]:
-                    data["current_partner"] += 1
-                    context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {i+1} را وارد کنید:")
-                else:
-                    data["step"] = 999  # کد خاص برای گرفتن موضوع جدید
-                    context.bot.send_message(chat_id=chat_id, text="موضوع جدید فعالیت شرکت را وارد کنید:")
-                return
-    
-    # دریافت موضوع جدید
-    if step == 999:
-        data["موضوع جدید"] = text
-        data["step"] = 1000
-        context.bot.send_message(chat_id=chat_id, text="نام وکیل (شخص ثبت‌کننده صورتجلسه) را وارد کنید:")
+            data[f"سهم الشرکه شریک {i}"] = text
+            if i < data["تعداد شرکا"]:
+                data["current_partner"] += 1
+                data["step"] = 8
+                context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {i+1} را وارد کنید:")
+            else:
+                data["step"] = 10
+                keyboard = [
+                    [InlineKeyboardButton("➕ اضافه می‌گردد", callback_data='الحاق')],
+                    [InlineKeyboardButton("🔄 جایگزین می‌گردد", callback_data='جایگزین')]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                context.bot.send_message(chat_id=chat_id, text="❓آیا موضوعات جدید به موضوع قبلی اضافه می‌شوند یا جایگزین آن؟", reply_markup=reply_markup)
+            return
+
+    # در CallbackHandler دکمه‌های مرحله 10:
+    if data.get("step") == 10 and update.callback_query:
+        answer = update.callback_query.data
+        update.callback_query.answer()
+        if answer in ["الحاق", "جایگزین"]:
+            data["نوع تغییر موضوع"] = answer
+            data["step"] = 11
+            context.bot.send_message(chat_id=chat_id, text="موضوع جدید فعالیت شرکت را وارد کنید:")
         return
-    
-    if step == 1000:
+
+    if step == 11:
+        data["موضوع جدید"] = text
+        data["step"] = 12
+        context.bot.send_message(chat_id=chat_id, text="نام وکیل (ثبت‌کننده صورتجلسه) را وارد کنید:")
+        return
+
+    if step == 12:
         data["وکیل"] = text
         send_summary(chat_id, context)
         return
@@ -551,6 +586,8 @@ def button_handler(update: Update, context: CallbackContext):
     query = update.callback_query
     chat_id = query.message.chat_id
     query.answer()
+    user_data.setdefault(chat_id, {})
+    data = user_data[chat_id]
 
     if "موضوع صورتجلسه" not in user_data.get(chat_id, {}):
         user_data[chat_id]["موضوع صورتجلسه"] = query.data
@@ -577,6 +614,21 @@ def button_handler(update: Update, context: CallbackContext):
         context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
         return
 
+        if data.get("step") == 10:
+            انتخاب = query.data
+            query.answer()
+    
+            if انتخاب == "الحاق":
+                data["نوع تغییر موضوع"] = "الحاق"
+            elif انتخاب == "جایگزین":
+                data["نوع تغییر موضوع"] = "جایگزین"
+            else:
+                context.bot.send_message(chat_id=chat_id, text="❗️انتخاب نامعتبر بود.")
+                return
+    
+            data["step"] = 11
+            context.bot.send_message(chat_id=chat_id, text="موضوع جدید فعالیت شرکت را وارد کنید:")
+            return
 
 def send_summary(chat_id, context):
     data = user_data[chat_id]
@@ -766,35 +818,46 @@ def send_summary(chat_id, context):
         return
 
     if موضوع == "تغییر موضوع فعالیت" and نوع_شرکت == "مسئولیت محدود":
-        count = data["تعداد شرکا"]
-        lines = ""
-        signers = ""
+        count = data.get("تعداد شرکا", 0)
+        partners_lines = ""
         for i in range(1, count + 1):
             name = data.get(f"شریک {i}", "")
             share = data.get(f"سهم الشرکه شریک {i}", "")
-            lines += f"{name}                                              {share} ریال\n"
-            signers += f"{name}\t"
-    
+            partners_lines += f"{name}                                              {share} ریال\n"
+
+        action_line = (
+            "نسبت به الحاق مواردی به موضوع شرکت اتخاذ تصمیم شد."
+            if data["نوع تغییر موضوع"] == "الحاق"
+            else "نسبت به تغییر موضوع شرکت اتخاذ تصمیم شد."
+        )
+        subject_line = (
+            "مواردی به شرح ذیل به موضوع شرکت الحاق شد:"
+            if data["نوع تغییر موضوع"] == "الحاق"
+            else "موضوع شرکت به شرح ذیل تغییر یافت:"
+        )
+
         text = f"""صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} ({نوع_شرکت})
-    شماره ثبت شرکت :     {data['شماره ثبت']}
-    شناسه ملی :      {data['شناسه ملی']}
-    سرمایه ثبت شده : {data['سرمایه']} ریال
-    
-    صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} ({نوع_شرکت}) ثبت شده به شماره {data['شماره ثبت']} در تاریخ  {data['تاریخ']} ساعت {data['ساعت']} با حضور کلیه شرکا در محل قانونی شرکت تشکیل و نسبت به الحاق مواردی به موضوع شرکت اتخاذ تصمیم شد.
-    
-    اسامی شرکا                                                        میزان سهم الشرکه
-    {lines}
-    مواردی به شرح ذیل به موضوع شرکت الحاق شد:
-    {data['موضوع جدید']}
-    و ماده مربوطه اساسنامه به شرح فوق اصلاح می گردد.
-    
-    به {data['وکیل']} از شرکاء شرکت وکالت داده می شود که ضمن مراجعه به اداره ثبت شرکت ها نسبت به ثبت صورتجلسه و پرداخت حق الثبت و امضاء ذیل دفاتر ثبت اقدام نماید.
-    
-    امضاء شرکاء: 
-    {signers}"""
-    
+شماره ثبت شرکت :     {data['شماره ثبت']}
+شناسه ملی :      {data['شناسه ملی']}
+سرمایه ثبت شده : {data['سرمایه']} ریال
+
+صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} ({نوع_شرکت}) ثبت شده به شماره {data['شماره ثبت']} در تاریخ  {data['تاریخ']} ساعت {data['ساعت']} با حضور کلیه شرکا در محل قانونی شرکت تشکیل و {action_line}
+
+اسامی شرکا                                                        میزان سهم الشرکه
+{partners_lines}
+{subject_line}
+{data['موضوع جدید']} 
+و ماده مربوطه اساسنامه به شرح فوق اصلاح می گردد. 
+به {data['وکیل']} از شرکاء شرکت وکالت داده می شود که ضمن مراجعه به اداره ثبت شرکت ها نسبت به ثبت صورتجلسه و پرداخت حق الثبت و امضاء ذیل دفاتر ثبت اقدام نماید.
+
+امضاء شرکاء: 
+"""
+
+        for i in range(1, count + 1):
+            text += f"{data.get(f'شریک {i}', '')}     "
         context.bot.send_message(chat_id=chat_id, text=text)
-    
+
+        # فایل Word
         file_path = generate_word_file(text)
         with open(file_path, 'rb') as f:
             context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه تغییر موضوع فعالیت.docx")
