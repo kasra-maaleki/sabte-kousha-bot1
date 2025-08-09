@@ -1,6 +1,7 @@
 import telegram
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
 from flask import Flask, request
 from collections import defaultdict
 from docx import Document
@@ -14,6 +15,8 @@ TOKEN = "7483081974:AAGRXi-NxDAgwYF-xpdhqsQmaGbw8-DipXY"
 bot = telegram.Bot(token=TOKEN)
 
 app = Flask(__name__)
+
+BACK_BUTTON = "🔙 بازگشت"
 
 user_data = {}
 
@@ -59,7 +62,280 @@ def generate_word_file(text: str, filepath: str = None):
 
     doc.save(filepath)
     return filepath
-    
+
+def get_back_keyboard():
+    return ReplyKeyboardMarkup([[BACK_BUTTON]], resize_keyboard=True)
+
+def remove_keyboard():
+    return ReplyKeyboardRemove()
+
+def back_handler(update, context):
+    chat_id = update.message.chat_id
+    data = user_data.get(chat_id, {})
+    step = data.get("step")
+
+    # اگر چیزی برای بازگشت نداریم
+    if not isinstance(step, int) or step <= 1:
+        context.bot.send_message(chat_id=chat_id, text="چیزی برای بازگشت وجود ندارد.", reply_markup=get_back_keyboard())
+        return
+
+    # ساده‌ترین حالت: یک مرحله عقب برو
+    data["step"] = step - 1
+
+    # سوال مرحله جدید را بپرس
+    ask_current_question(chat_id, context)
+
+def ask_current_question(chat_id: int, context: CallbackContext):
+    """
+    بر اساس وضعیت فعلی کاربر (user_data[chat_id]) سؤال بعدی را می‌فرستد.
+    این تابع فقط پرامپت می‌فرستد و هیچ مقداری در user_data تغییر نمی‌دهد.
+    """
+    data = user_data.get(chat_id, {})
+    step = data.get("step", 0)
+    موضوع = data.get("موضوع صورتجلسه")
+    نوع_شرکت = data.get("نوع شرکت")
+
+    # =========================
+    # حالت عمومی / پیش‌فرض
+    # =========================
+    # اگر هنوز موضوع یا نوع شرکت تعیین نشده باشند
+    if not موضوع:
+        context.bot.send_message(chat_id=chat_id, text="لطفاً ابتدا موضوع صورتجلسه را انتخاب کنید. /start")
+        return
+    if step == 0 and not نوع_شرکت:
+        context.bot.send_message(chat_id=chat_id, text="لطفاً نوع شرکت را از دکمه‌ها انتخاب کنید.")
+        return
+
+    # =========================
+    # تغییر آدرس | مسئولیت محدود
+    # =========================
+    if موضوع == "تغییر آدرس" and نوع_شرکت == "مسئولیت محدود":
+        common_fields = ["نام شرکت", "شماره ثبت", "شناسه ملی", "سرمایه", "تاریخ", "ساعت", "آدرس جدید", "کد پستی", "وکیل"]
+
+        if step == 1:
+            context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
+            return
+
+        if 2 <= step <= 9:
+            # step-1 اندیس فیلد جاری در common_fields
+            next_field = common_fields[step - 1]
+            context.bot.send_message(chat_id=chat_id, text=get_label(next_field))
+            return
+
+        if step == 10:
+            context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (بین ۲ تا ۷):")
+            return
+
+        if step > 10:
+            count = data.get("تعداد شرکا")
+            i = data.get("current_partner", 1)
+
+            # اگر تعداد شرکا هنوز مشخص نیست (ایمنی)
+            if not isinstance(count, int):
+                context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (بین ۲ تا ۷):")
+                return
+
+            # مرحله دریافت نام/سهم الشرکه شرکای i..count
+            if f"شریک {i}" not in data:
+                context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {i} را وارد کنید:")
+                return
+
+            if f"سهم الشرکه شریک {i}" not in data:
+                context.bot.send_message(chat_id=chat_id, text=f"میزان سهم الشرکه شریک شماره {i} را به ریال وارد کنید (عدد فارسی):")
+                return
+
+            # اگر شریک فعلی کامل شد و هنوز شریک بعدی باقیست
+            if i < count:
+                context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {i+1} را وارد کنید:")
+                return
+
+            # در غیر این صورت همه چیز تکمیل شده
+            context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات تکمیل شد. در حال ساخت صورتجلسه...")
+            return
+
+    # =========================================
+    # تغییر موضوع فعالیت | مسئولیت محدود
+    # (با کیبورد مرحله ۱۰: «الحاق»/«جایگزین»)
+    # =========================================
+    if موضوع == "تغییر موضوع فعالیت" and نوع_شرکت == "مسئولیت محدود":
+        if step == 1:
+            context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
+            return
+        if step == 2:
+            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:")
+            return
+        if step == 3:
+            context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید:")
+            return
+        if step == 4:
+            context.bot.send_message(chat_id=chat_id, text="سرمایه شرکت به ریال را وارد کنید (اعداد فارسی):")
+            return
+        if step == 5:
+            context.bot.send_message(chat_id=chat_id, text="تاریخ صورتجلسه را وارد کنید (مثلاً: ۱۴۰۴/۰۵/۱۵):")
+            return
+        if step == 6:
+            context.bot.send_message(chat_id=chat_id, text="ساعت جلسه را وارد کنید:")
+            return
+        if step == 7:
+            context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید:")
+            return
+        if step in (8, 9):
+            # در این فلو از data["current_partner"] استفاده می‌شود
+            i = data.get("current_partner", 1)
+            if step == 8:
+                context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {i} را وارد کنید:")
+                return
+            if step == 9:
+                context.bot.send_message(chat_id=chat_id, text=f"سهم الشرکه شریک شماره {i} را وارد کنید (عدد فارسی):")
+                return
+        if step == 10:
+            # نمایش کیبورد «الحاق»/«جایگزین»
+            keyboard = [
+                [InlineKeyboardButton("➕ اضافه می‌گردد", callback_data='الحاق')],
+                [InlineKeyboardButton("🔄 جایگزین می‌گردد", callback_data='جایگزین')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            context.bot.send_message(chat_id=chat_id, text="❓آیا موضوعات جدید به موضوع قبلی اضافه می‌شوند یا جایگزین آن؟", reply_markup=reply_markup)
+            return
+        if step == 11:
+            context.bot.send_message(chat_id=chat_id, text="موضوع جدید فعالیت شرکت را وارد کنید:")
+            return
+        if step == 12:
+            context.bot.send_message(chat_id=chat_id, text="نام وکیل (ثبت‌کننده صورتجلسه) را وارد کنید:")
+            return
+
+    # =========================================
+    # نقل و انتقال سهام | سهامی خاص
+    # =========================================
+    if موضوع == "نقل و انتقال سهام" and نوع_شرکت == "سهامی خاص":
+        if step == 1:
+            context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
+            return
+        if step == 2:
+            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:")
+            return
+        if step == 3:
+            context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید:")
+            return
+        if step == 4:
+            context.bot.send_message(chat_id=chat_id, text="سرمایه شرکت به ریال را وارد کنید (عدد فارسی):")
+            return
+        if step == 5:
+            context.bot.send_message(chat_id=chat_id, text="تاریخ صورتجلسه را وارد کنید (مثلاً: ۱۴۰۴/۰۵/۱۵):")
+            return
+        if step == 6:
+            context.bot.send_message(chat_id=chat_id, text="ساعت جلسه را وارد کنید :")
+            return
+        if step == 7:
+            context.bot.send_message(chat_id=chat_id, text="مدیر عامل (رئیس جلسه) را وارد کنید:")
+            return
+        if step == 8:
+            context.bot.send_message(chat_id=chat_id, text="ناظر اول جلسه را وارد کنید (از بین اعضای هیئت مدیره):")
+            return
+        if step == 9:
+            context.bot.send_message(chat_id=chat_id, text="ناظر دوم جلسه را وارد کنید (از بین اعضای هیئت مدیره):")
+            return
+        if step == 10:
+            context.bot.send_message(chat_id=chat_id, text="منشی جلسه را وارد کنید:")
+            return
+        if step == 11:
+            context.bot.send_message(chat_id=chat_id, text="تعداد فروشندگان را وارد کنید:")
+            return
+
+        # از اینجا به بعد ساختار تو در توی فروشنده/خریدار
+        if step >= 12:
+            i = data.get("فروشنده_index", 1)  # فروشنده فعلی
+            total_sellers = data.get("تعداد فروشندگان", 0)
+
+            # اگر هنوز نام فروشنده فعلی ثبت نشده
+            if f"فروشنده {i} نام" not in data:
+                context.bot.send_message(chat_id=chat_id, text=f"نام فروشنده شماره {i} را وارد کنید:")
+                return
+            # اگر کد ملی فروشنده فعلی ثبت نشده
+            if f"فروشنده {i} کد ملی" not in data:
+                context.bot.send_message(chat_id=chat_id, text=f"کد ملی فروشنده شماره {i} را وارد کنید:")
+                return
+            # اگر تعداد سهام واگذار شده فروشنده فعلی ثبت نشده
+            if f"فروشنده {i} تعداد" not in data:
+                context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام منتقل‌شده توسط فروشنده {i} را وارد کنید:")
+                return
+
+            # پس از ثبت تعداد، به مرحله ۱۳ می‌روید: تعداد خریداران برای فروشنده i
+            if step == 13 and f"تعداد خریداران {i}" not in data:
+                context.bot.send_message(chat_id=chat_id, text="تعداد خریداران برای این فروشنده را وارد کنید:")
+                return
+
+            if step >= 14:
+                k = data.get(f"خریدار_index_{i}", 1)  # خریدار فعلی از فروشنده i
+                buyers_count = data.get(f"تعداد خریداران {i}", 0)
+
+                if f"خریدار {i}-{k} نام" not in data:
+                    context.bot.send_message(chat_id=chat_id, text=f"نام خریدار شماره {k} از فروشنده {i} را وارد کنید:")
+                    return
+                if f"خریدار {i}-{k} کد ملی" not in data:
+                    context.bot.send_message(chat_id=chat_id, text=f"کد ملی خریدار {k} از فروشنده {i} را وارد کنید:")
+                    return
+                if f"خریدار {i}-{k} آدرس" not in data:
+                    context.bot.send_message(chat_id=chat_id, text=f"آدرس خریدار {k} از فروشنده {i} را وارد کنید:")
+                    return
+
+                # اگر خریدار فعلی تکمیل است و هنوز خریدار دیگری باقیست
+                if k < buyers_count:
+                    context.bot.send_message(chat_id=chat_id, text=f"نام خریدار شماره {k+1} از فروشنده {i} را وارد کنید:")
+                    return
+
+                # اگر خریداران این فروشنده تمام شده‌اند اما فروشنده دیگری داریم
+                if i < total_sellers:
+                    context.bot.send_message(chat_id=chat_id, text=f"نام فروشنده شماره {i+1} را وارد کنید:")
+                    return
+
+                # اگر به مرحله سهامداران قبل/بعد رسیده‌ایم:
+                if step == 15:
+                    context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران قبل از نقل و انتقال را وارد کنید:")
+                    return
+                if step == 16:
+                    j = data.get("سهامدار_قبل_index", 1)
+                    if f"سهامدار قبل {j} نام" not in data:
+                        context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار قبل شماره {j} را وارد کنید:")
+                        return
+                    if f"سهامدار قبل {j} تعداد" not in data:
+                        context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار قبل شماره {j} را وارد کنید:")
+                        return
+                    context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار قبل شماره {j+1} را وارد کنید:")
+                    return
+                if step == 17:
+                    context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران بعد از نقل و انتقال را وارد کنید:")
+                    return
+                if step == 18:
+                    j = data.get("سهامدار_بعد_index", 1)
+                    if f"سهامدار بعد {j} نام" not in data:
+                        context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار بعد شماره {j} را وارد کنید:")
+                        return
+                    if f"سهامدار بعد {j} تعداد" not in data:
+                        context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار بعد شماره {j} را وارد کنید:")
+                        return
+                    context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار بعد شماره {j+1} را وارد کنید:")
+                    return
+                if step == 19:
+                    context.bot.send_message(chat_id=chat_id, text="نام وکیل (شخص ثبت‌کننده صورتجلسه) را وارد کنید:")
+                    return
+
+    # =========================
+    # سایر حالات عمومی
+    # =========================
+    # اگر به اینجا رسیدیم، از لیست fields عمومی استفاده کن
+    if step == 1:
+        context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
+        return
+    if 2 <= step < len(fields):
+        field = fields[step]
+        context.bot.send_message(chat_id=chat_id, text=get_label(field))
+        return
+
+    # اگر همه چیز تکمیل است یا وضعیت ناشناخته:
+    context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات قبلاً ثبت شده یا مرحله نامعتبر است. برای شروع مجدد /start را ارسال کنید.")
+
+
 def start(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     user_data[chat_id] = {"step": 0}
@@ -878,8 +1154,9 @@ updater = Updater(token=TOKEN, use_context=True)
 dispatcher = updater.dispatcher
 
 dispatcher.add_handler(CommandHandler('start', start))
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-dispatcher.add_handler(CallbackQueryHandler(button_handler))
+dispatcher.add_handler(CallbackQueryHandler(button_handler), group=0)
+dispatcher.add_handler(MessageHandler(Filters.regex(f'^{BACK_BUTTON}$'), back_handler), group=0)
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message), group=1)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
