@@ -67,16 +67,8 @@ def generate_word_file(text: str, filepath: str = None):
 
     doc.save(filepath)
     return filepath
-    
-def start(update: Update, context: CallbackContext):
-    chat_id = update.message.chat_id
-    user_data[chat_id] = {"step": 0}
-    update.message.reply_text(
-        "به خدمات ثبتی کوشا خوش آمدید 🙏🏼\n"
-        "در کمتر از چند دقیقه، صورتجلسه رسمی و دقیق شرکت خود را آماده دریافت خواهید کرد.\n"
-        "همه‌چیز طبق آخرین قوانین ثبت شرکت‌ها تنظیم می‌شود.",
-        reply_markup=main_keyboard()
-    )
+def send_topic_menu(chat_id, context):
+    """منوی انتخاب «موضوع صورتجلسه» را نشان می‌دهد."""
     keyboard = [
         [InlineKeyboardButton("🏢 تغییر آدرس", callback_data='تغییر آدرس')],
         [InlineKeyboardButton("🔄 نقل و انتقال سهام", callback_data='نقل و انتقال سهام')],
@@ -88,6 +80,36 @@ def start(update: Update, context: CallbackContext):
         [InlineKeyboardButton("❌ انحلال شرکت", callback_data='انحلال شرکت')],
         [InlineKeyboardButton("💰 پرداخت سرمایه تعهدی شرکت", callback_data='پرداخت سرمایه تعهدی شرکت')],
     ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    context.bot.send_message(
+        chat_id=chat_id,
+        text="💬 برای چه موضوعی صورتجلسه نیاز دارید؟\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:",
+        reply_markup=reply_markup
+    )
+
+def send_company_type_menu(chat_id, context):
+    """پس از انتخاب موضوع، منوی «نوع شرکت» را نشان می‌دهد."""
+    keyboard = [
+        [InlineKeyboardButton("سهامی خاص", callback_data='سهامی خاص')],
+        [InlineKeyboardButton("مسئولیت محدود", callback_data='مسئولیت محدود')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    context.bot.send_message(
+        chat_id=chat_id,
+        text="نوع شرکت را انتخاب کنید:",
+        reply_markup=reply_markup
+    )
+    
+def start(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    user_data[chat_id] = {"step": 0}
+    update.message.reply_text(
+        "به خدمات ثبتی کوشا خوش آمدید 🙏🏼\n"
+        "در کمتر از چند دقیقه، صورتجلسه رسمی و دقیق شرکت خود را آماده دریافت خواهید کرد.\n"
+        "همه‌چیز طبق آخرین قوانین ثبت شرکت‌ها تنظیم می‌شود.",
+        reply_markup=main_keyboard()
+    )
+    send_topic_menu(chat_id, context)
     reply_markup = InlineKeyboardMarkup(keyboard)
     update.message.reply_text("💬 برای چه موضوعی صورتجلسه نیاز دارید؟\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", reply_markup=reply_markup)
 
@@ -111,7 +133,13 @@ def handle_back(update: Update, context: CallbackContext):
 def handle_message(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     text = update.message.text.strip()
-    
+    user_data.setdefault(chat_id, {"step": 0})
+
+    # اگر کاربر دکمه بازگشت زد
+    if text == BACK_BTN:
+        handle_back(update, context)
+        return
+        
     if chat_id not in user_data:
         user_data[chat_id] = {"step": 0}
 
@@ -120,11 +148,7 @@ def handle_message(update: Update, context: CallbackContext):
     
     موضوع = data.get("موضوع صورتجلسه")       # ✅ این دو خط رو اضافه کن
     نوع_شرکت = data.get("نوع شرکت")          #
-
-    # اگر کاربر دکمه بازگشت زد
-    if text == BACK_BTN:
-        handle_back(update, context)
-        return
+    
     
     if "موضوع صورتجلسه" not in data:
         context.bot.send_message(chat_id=chat_id, text="لطفاً ابتدا موضوع صورتجلسه را انتخاب کنید. برای شروع مجدد /start را ارسال کنید .")
@@ -613,6 +637,352 @@ def get_label(field):
     }
     return labels.get(field, f"{field} را وارد کنید:")
 
+def handle_back(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    data = user_data.setdefault(chat_id, {"step": 0})
+    step = data.get("step", 0)
+    موضوع = data.get("موضوع صورتجلسه")
+    نوع_شرکت = data.get("نوع شرکت")
+
+    # اگر هنوز موضوع انتخاب نشده → منوی موضوعات را دوباره نشان بده
+    if not موضوع:
+        context.bot.send_message(chat_id=chat_id, text="به منوی موضوعات برگشتید.")
+        # همون منوی موضوعات فعلی خودت را صدا بزن (تابعش هر چی اسم گذاشتی)
+        send_topic_menu(chat_id, context)
+        return
+
+    # اگر در انتخاب «نوع شرکت» هستیم یا باید به آن برگردیم
+    if step == 1:  # قبل از سؤال «نام شرکت»
+        data.pop("نوع شرکت", None)
+        data["step"] = 0
+        context.bot.send_message(chat_id=chat_id, text="به انتخاب نوع شرکت برگشتید.")
+        send_company_type_menu(chat_id, context)
+        return
+
+    # -------------------------------
+    # تغییر آدرس - مسئولیت محدود
+    # steps: 1=نام شرکت، 2..9 فیلدهای common، 10=تعداد شرکا، >10 حلقه شرکا (نام/سهم)
+    # -------------------------------
+    if موضوع == "تغییر آدرس" and نوع_شرکت == "مسئولیت محدود":
+        common_fields = ["نام شرکت","شماره ثبت","شناسه ملی","سرمایه","تاریخ","ساعت","آدرس جدید","کد پستی","وکیل"]
+
+        # برگشت داخل بخش فیلدهای common (2..10)
+        if 2 <= step <= 10:
+            prev_step = step - 1
+            if prev_step == 1:
+                data.pop("نام شرکت", None)
+                data["step"] = 1
+                context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
+                return
+            key = common_fields[prev_step - 1]
+            data.pop(key, None)
+            data["step"] = prev_step
+            context.bot.send_message(chat_id=chat_id, text=get_label(key))
+            return
+
+        # حلقه شرکا: >10
+        if step > 10:
+            i = data.get("current_partner", 1)
+            count = data.get("تعداد شرکا", 0)
+
+            # اگر منتظر نام شریک i هستیم (پس هنوز کلید سهم‌الشرکه‌اش ثبت نشده)
+            if f"شریک {i}" not in data:
+                if i == 1:
+                    # برگرد به «تعداد شرکا»
+                    data.pop("تعداد شرکا", None)
+                    data["step"] = 10
+                    context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (بین ۲ تا ۷):")
+                    return
+                else:
+                    # برگرد به «سهم‌الشرکه شریک قبلی»
+                    prev_i = i - 1
+                    data["current_partner"] = prev_i
+                    data.pop(f"سهم الشرکه شریک {prev_i}", None)
+                    data["step"] = 10 + prev_i  # همچنان در فاز >10
+                    context.bot.send_message(chat_id=chat_id, text=f"میزان سهم الشرکه شریک شماره {prev_i} را به ریال وارد کنید (عدد فارسی):")
+                    return
+
+            # اگر منتظر سهم‌الشرکه شریک i هستیم
+            if f"سهم الشرکه شریک {i}" not in data:
+                data.pop(f"شریک {i}", None)
+                data["step"] = 10 + i
+                context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {i} را وارد کنید:")
+                return
+
+            # اگر بعد از اتمام کار هستیم
+            context.bot.send_message(chat_id=chat_id, text="برای شروع مجدد /start را ارسال کنید.")
+            return
+
+    # --------------------------------------
+    # تغییر موضوع فعالیت - مسئولیت محدود
+    # steps: 1..7 خطی تا «تعداد شرکا»، 8=نام شریک i، 9=سهم‌الشرکه شریک i،
+    # 10=انتخاب الحاق/جایگزین (callback)، 11=موضوع جدید، 12=وکیل
+    # --------------------------------------
+    if موضوع == "تغییر موضوع فعالیت" and نوع_شرکت == "مسئولیت محدود":
+        if 2 <= step <= 7:  # فیلدهای خطی تا قبل از ورود شرکا
+            prev_step = step - 1
+            order = ["نام شرکت","شماره ثبت","شناسه ملی","سرمایه","تاریخ","ساعت"]
+            key = order[prev_step - 1] if prev_step - 1 < len(order) else None
+            if prev_step == 1:
+                data.pop("نام شرکت", None)
+                data["step"] = 1
+                context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
+                return
+            if key:
+                data.pop(key, None)
+                data["step"] = prev_step
+                context.bot.send_message(chat_id=chat_id, text=get_label(key))
+                return
+
+        # 8/9: حلقه شرکا
+        if step in (8, 9):
+            i = data.get("current_partner", 1)
+            if step == 8:
+                # منتظر «نام شریک i»
+                if i == 1:
+                    data.pop("تعداد شرکا", None)
+                    data["step"] = 7
+                    context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید:")
+                    return
+                else:
+                    # برگرد به «سهم‌الشرکه شریک قبلی»
+                    prev_i = i - 1
+                    data["current_partner"] = prev_i
+                    data.pop(f"سهم الشرکه شریک {prev_i}", None)
+                    data["step"] = 9
+                    context.bot.send_message(chat_id=chat_id, text=f"سهم الشرکه شریک شماره {prev_i} را وارد کنید (عدد فارسی):")
+                    return
+            else:  # step == 9 → منتظر «سهم‌الشرکه شریک i»
+                data.pop(f"شریک {i}", None)
+                data["step"] = 8
+                context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {i} را وارد کنید:")
+                return
+
+        # 10: دکمه الحاق/جایگزین
+        if step == 10:
+            i = data.get("تعداد شرکا", 1)
+            data["current_partner"] = i
+            data.pop(f"سهم الشرکه شریک {i}", None)
+            data["step"] = 9
+            context.bot.send_message(chat_id=chat_id, text=f"سهم الشرکه شریک شماره {i} را وارد کنید (عدد فارسی):")
+            return
+
+        # 11: موضوع جدید
+        if step == 11:
+            data.pop("نوع تغییر موضوع", None)
+            data["step"] = 10
+            # دوباره همان دکمه‌های الحاق/جایگزین را بفرست
+            keyboard = [
+                [InlineKeyboardButton("➕ اضافه می‌گردد", callback_data='الحاق')],
+                [InlineKeyboardButton("🔄 جایگزین می‌گردد", callback_data='جایگزین')]
+            ]
+            context.bot.send_message(chat_id=chat_id, text="❓آیا موضوعات جدید به موضوع قبلی اضافه می‌شوند یا جایگزین آن؟",
+                                     reply_markup=InlineKeyboardMarkup(keyboard))
+            return
+
+        # 12: وکیل
+        if step == 12:
+            data.pop("موضوع جدید", None)
+            data["step"] = 11
+            context.bot.send_message(chat_id=chat_id, text="موضوع جدید فعالیت شرکت را وارد کنید:")
+            return
+
+    # --------------------------------------
+    # نقل و انتقال سهام - سهامی خاص
+    # steps خطی: 1..11
+    # 12: فروشنده i (نام/کدملی/تعداد)
+    # 13: تعداد خریداران برای فروشنده i
+    # 14: خریدار k از فروشنده i (نام/کدملی/آدرس)
+    # 15: تعداد سهامداران قبل
+    # 16: حلقه سهامداران قبل (نام/تعداد)
+    # 17: تعداد سهامداران بعد
+    # 18: حلقه سهامداران بعد (نام/تعداد)
+    # 19: وکیل
+    # --------------------------------------
+    if موضوع == "نقل و انتقال سهام" and نوع_شرکت == "سهامی خاص":
+        linear_map = {
+            1: "نام شرکت", 2: "شماره ثبت", 3: "شناسه ملی", 4: "سرمایه",
+            5: "تاریخ", 6: "ساعت", 7: "مدیر عامل", 8: "نایب رییس",
+            9: "رییس", 10: "منشی", 11: "تعداد فروشندگان"
+        }
+
+        # برگشت در مسیر خطی
+        if 2 <= step <= 11:
+            prev_step = step - 1
+            key = linear_map.get(prev_step)
+            if key:
+                data.pop(key, None)
+                data["step"] = prev_step
+                context.bot.send_message(chat_id=chat_id, text=get_label(key))
+                return
+
+        # 12: فروشنده i
+        if step == 12:
+            i = data.get("فروشنده_index", 1)
+            prefix = f"فروشنده {i}"
+            # منتظر نام فروشنده i
+            if f"{prefix} نام" not in data:
+                if i == 1:
+                    data.pop("تعداد فروشندگان", None)
+                    data["step"] = 11
+                    context.bot.send_message(chat_id=chat_id, text="تعداد فروشندگان را وارد کنید:")
+                    return
+                else:
+                    # برگرد به آدرس آخرین خریدارِ فروشنده قبلی
+                    prev_i = i - 1
+                    total_k = data.get(f"تعداد خریداران {prev_i}", 1)
+                    data["فروشنده_index"] = prev_i
+                    data[f"خریدار_index_{prev_i}"] = total_k
+                    data.pop(f"خریدار {prev_i}-{total_k} آدرس", None)
+                    data["step"] = 14
+                    context.bot.send_message(chat_id=chat_id, text=f"آدرس خریدار {total_k} از فروشنده {prev_i} را وارد کنید:")
+                    return
+            # منتظر کدملی
+            if f"{prefix} کد ملی" not in data:
+                data.pop(f"{prefix} نام", None)
+                data["step"] = 12
+                context.bot.send_message(chat_id=chat_id, text=f"نام فروشنده شماره {i} را وارد کنید:")
+                return
+            # منتظر تعداد
+            if f"{prefix} تعداد" not in data:
+                data.pop(f"{prefix} کد ملی", None)
+                data["step"] = 12
+                context.bot.send_message(chat_id=chat_id, text=f"کد ملی فروشنده شماره {i} را وارد کنید:")
+                return
+
+        # 13: تعداد خریداران برای فروشنده i
+        if step == 13:
+            i = data.get("فروشنده_index", 1)
+            data.pop(f"فروشنده {i} تعداد", None)
+            data["step"] = 12
+            context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام منتقل‌شده توسط فروشنده {i} را وارد کنید:")
+            return
+
+        # 14: خریدار k از فروشنده i
+        if step == 14:
+            i = data.get("فروشنده_index", 1)
+            k = data.get(f"خریدار_index_{i}", 1)
+
+            # منتظر نام
+            if f"خریدار {i}-{k} نام" not in data:
+                data.pop(f"تعداد خریداران {i}", None)
+                data["step"] = 13
+                context.bot.send_message(chat_id=chat_id, text=f"تعداد خریداران برای فروشنده {i} را وارد کنید:")
+                return
+            # منتظر کدملی
+            if f"خریدار {i}-{k} کد ملی" not in data:
+                data.pop(f"خریدار {i}-{k} نام", None)
+                data["step"] = 14
+                context.bot.send_message(chat_id=chat_id, text=f"نام خریدار شماره {k} از فروشنده {i} را وارد کنید:")
+                return
+            # منتظر آدرس
+            if f"خریدار {i}-{k} آدرس" not in data:
+                data.pop(f"خریدار {i}-{k} کد ملی", None)
+                data["step"] = 14
+                context.bot.send_message(chat_id=chat_id, text=f"کد ملی خریدار {k} از فروشنده {i} را وارد کنید:")
+                return
+
+        # 15: تعداد سهامداران قبل
+        if step == 15:
+            # برگرد به آخرین «آدرس خریدار» در مرحله 14 (اگر وجود داشته)
+            i = data.get("فروشنده_index", 1)
+            total_k = data.get(f"تعداد خریداران {i}", None)
+            if total_k:
+                data[f"خریدار_index_{i}"] = total_k
+                data.pop(f"خریدار {i}-{total_k} آدرس", None)
+                data["step"] = 14
+                context.bot.send_message(chat_id=chat_id, text=f"آدرس خریدار {total_k} از فروشنده {i} را وارد کنید:")
+                return
+            # در غیر این صورت به 13 برگرد
+            data["step"] = 13
+            context.bot.send_message(chat_id=chat_id, text=f"تعداد خریداران برای فروشنده {i} را وارد کنید:")
+            return
+
+        # 16: حلقه سهامداران قبل (نام/تعداد)
+        if step == 16:
+            i = data.get("سهامدار_قبل_index", 1)
+            prefix = f"سهامدار قبل {i}"
+            if f"{prefix} نام" not in data:
+                data.pop("تعداد سهامداران قبل", None)
+                data["step"] = 15
+                context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران قبل از نقل و انتقال را وارد کنید:")
+                return
+            if f"{prefix} تعداد" not in data:
+                data.pop(f"{prefix} نام", None)
+                data["step"] = 16
+                context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار قبل شماره {i} را وارد کنید:")
+                return
+
+        # 17: تعداد سهامداران بعد
+        if step == 17:
+            i = data.get("سهامدار_قبل_index", 1)
+            if i > 1:
+                prev_i = i - 1
+                data["سهامدار_قبل_index"] = prev_i
+                data.pop(f"سهامدار قبل {prev_i} تعداد", None)
+                data["step"] = 16
+                context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار قبل شماره {prev_i} را وارد کنید:")
+                return
+            else:
+                data.pop("سهامدار قبل 1 نام", None)
+                data["step"] = 16
+                context.bot.send_message(chat_id=chat_id, text="نام سهامدار قبل شماره ۱ را وارد کنید:")
+                return
+
+        # 18: حلقه سهامداران بعد (نام/تعداد)
+        if step == 18:
+            i = data.get("سهامدار_بعد_index", 1)
+            prefix = f"سهامدار بعد {i}"
+            if f"{prefix} نام" not in data:
+                data.pop("تعداد سهامداران بعد", None)
+                data["step"] = 17
+                context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران بعد از نقل و انتقال را وارد کنید:")
+                return
+            if f"{prefix} تعداد" not in data:
+                data.pop(f"{prefix} نام", None)
+                data["step"] = 18
+                context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار بعد شماره {i} را وارد کنید:")
+                return
+
+        # 19: وکیل
+        if step == 19:
+            i = data.get("سهامدار_بعد_index", 1)
+            if i > 1:
+                prev_i = i - 1
+                data["سهامدار_بعد_index"] = prev_i
+                data.pop(f"سهامدار بعد {prev_i} تعداد", None)
+                data["step"] = 18
+                context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار بعد شماره {prev_i} را وارد کنید:")
+                return
+            else:
+                data.pop("سهامدار بعد 1 نام", None)
+                data["step"] = 18
+                context.bot.send_message(chat_id=chat_id, text="نام سهامدار بعد شماره ۱ را وارد کنید:")
+                return
+
+    # -------------------------------
+    # حالت عمومی پیش‌فرض (مسیرهای ساده)
+    # -------------------------------
+    if step == 0:
+        # برگشت به انتخاب موضوع
+        data.pop("موضوع صورتجلسه", None)
+        data.pop("نوع شرکت", None)
+        context.bot.send_message(chat_id=chat_id, text="به انتخاب موضوع برگشتید.")
+        send_topic_menu(chat_id, context)
+        return
+
+    if step >= 2:
+        # یک قدم به عقب در مسیر ساده fields[]
+        prev_step = step - 1
+        key = fields[prev_step]
+        data.pop(key, None)
+        data["step"] = prev_step
+        context.bot.send_message(chat_id=chat_id, text=get_label(key))
+        return
+
+    # اگر هیچ‌کدام match نشد
+    context.bot.send_message(chat_id=chat_id, text="یک مرحله به عقب برگشتید.")
+
 def button_handler(update: Update, context: CallbackContext):
     query = update.callback_query
     chat_id = query.message.chat_id
@@ -623,10 +993,7 @@ def button_handler(update: Update, context: CallbackContext):
     if "موضوع صورتجلسه" not in user_data.get(chat_id, {}):
         user_data[chat_id]["موضوع صورتجلسه"] = query.data
         user_data[chat_id]["step"] = 0
-        keyboard = [
-            [InlineKeyboardButton("سهامی خاص", callback_data='سهامی خاص')],
-            [InlineKeyboardButton("مسئولیت محدود", callback_data='مسئولیت محدود')]
-        ]
+        send_company_type_menu(chat_id, context)
         reply_markup = InlineKeyboardMarkup(keyboard)
         context.bot.send_message(chat_id=chat_id, text=f"موضوع صورتجلسه انتخاب شد: {query.data}\n\nنوع شرکت را انتخاب کنید:", reply_markup=reply_markup)
         return
