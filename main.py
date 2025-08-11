@@ -320,26 +320,26 @@ def handle_message(update: Update, context: CallbackContext):
                 context.bot.send_message(chat_id=chat_id, text="❓آیا موضوعات جدید به موضوع قبلی اضافه می‌شوند یا جایگزین آن؟", reply_markup=reply_markup)
             return
 
-    # در CallbackHandler دکمه‌های مرحله 10:
-    if data.get("step") == 10 and update.callback_query:
-        answer = update.callback_query.data
-        update.callback_query.answer()
-        if answer in ["الحاق", "جایگزین"]:
-            data["نوع تغییر موضوع"] = answer
-            data["step"] = 11
-            context.bot.send_message(chat_id=chat_id, text="موضوع جدید فعالیت شرکت را وارد کنید:")
-        return
-
-    if step == 11:
-        data["موضوع جدید"] = text
-        data["step"] = 12
-        context.bot.send_message(chat_id=chat_id, text="نام وکیل (ثبت‌کننده صورتجلسه) را وارد کنید:")
-        return
-
-    if step == 12:
-        data["وکیل"] = text
-        send_summary(chat_id, context)
-        return
+        # در CallbackHandler دکمه‌های مرحله 10:
+        if data.get("step") == 10 and update.callback_query:
+            answer = update.callback_query.data
+            update.callback_query.answer()
+            if answer in ["الحاق", "جایگزین"]:
+                data["نوع تغییر موضوع"] = answer
+                data["step"] = 11
+                context.bot.send_message(chat_id=chat_id, text="موضوع جدید فعالیت شرکت را وارد کنید:")
+            return
+    
+        if step == 11:
+            data["موضوع جدید"] = text
+            data["step"] = 12
+            context.bot.send_message(chat_id=chat_id, text="نام وکیل (ثبت‌کننده صورتجلسه) را وارد کنید:")
+            return
+    
+        if step == 12:
+            data["وکیل"] = text
+            send_summary(chat_id, context)
+            return
 
 
     if موضوع == "نقل و انتقال سهام" and نوع_شرکت == "سهامی خاص":
