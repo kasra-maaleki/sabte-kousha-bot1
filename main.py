@@ -1,6 +1,7 @@
 import telegram
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import ReplyKeyboardMarkup, KeyboardButton
 from flask import Flask, request
 from collections import defaultdict
 from docx import Document
@@ -17,6 +18,13 @@ app = Flask(__name__)
 
 user_data = {}
 
+# متن دکمه بازگشت
+BACK_BTN = "⬅️ بازگشت"
+
+# تابع ساخت کیبورد اصلی که فقط دکمه بازگشت داره
+def main_keyboard():
+    return ReplyKeyboardMarkup([[KeyboardButton(BACK_BTN)]], resize_keyboard=True)
+    
 fields = [
     "نوع شرکت", "نام شرکت", "شماره ثبت", "شناسه ملی", "سرمایه", "تاریخ", "ساعت",
     "مدیر عامل", "نایب رییس", "رییس", "منشی", "آدرس جدید", "کد پستی", "وکیل"
@@ -67,12 +75,12 @@ def start(update: Update, context: CallbackContext):
         "به خدمات ثبتی کوشا خوش آمدید 🙏🏼\n"
         "در کمتر از چند دقیقه، صورتجلسه رسمی و دقیق شرکت خود را آماده دریافت خواهید کرد.\n"
         "همه‌چیز طبق آخرین قوانین ثبت شرکت‌ها تنظیم می‌شود."
+        reply_markup=main_keyboard()  # ← اینجا کیبورد بازگشت اضافه شد
     )
     keyboard = [
         [InlineKeyboardButton("🏢 تغییر آدرس", callback_data='تغییر آدرس')],
         [InlineKeyboardButton("🔄 نقل و انتقال سهام", callback_data='نقل و انتقال سهام')],
         [InlineKeyboardButton("🧾 تغییر موضوع فعالیت", callback_data='تغییر موضوع فعالیت')],
-        [InlineKeyboardButton("➕ الحاق به موضوع فعالیت", callback_data='الحاق به موضوع فعالیت')],
         [InlineKeyboardButton("⏳ تمدید سمت اعضا", callback_data='تمدید سمت اعضا')],
         [InlineKeyboardButton("📈 افزایش سرمایه", callback_data='افزایش سرمایه')],
         [InlineKeyboardButton("📉 کاهش سرمایه", callback_data='کاهش سرمایه')],
@@ -83,9 +91,27 @@ def start(update: Update, context: CallbackContext):
     reply_markup = InlineKeyboardMarkup(keyboard)
     update.message.reply_text("💬 برای چه موضوعی صورتجلسه نیاز دارید؟\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", reply_markup=reply_markup)
 
+def handle_back(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    data = user_data.get(chat_id, {})
+    step = data.get("step", 0)
+
+    # اگر در مرحله اول هستیم
+    if step <= 1:
+        context.bot.send_message(chat_id=chat_id, text="به ابتدای فرم برگشتید.")
+        return
+
+    # برگرد به مرحله قبلی
+    data["step"] = step - 1
+
+    # فیلد قبلی رو پیدا کن و دوباره سوالش رو بپرس
+    prev_field = fields[data["step"]]
+    context.bot.send_message(chat_id=chat_id, text=get_label(prev_field))
+
 def handle_message(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     text = update.message.text.strip()
+    
     if chat_id not in user_data:
         user_data[chat_id] = {"step": 0}
 
@@ -95,6 +121,11 @@ def handle_message(update: Update, context: CallbackContext):
     موضوع = data.get("موضوع صورتجلسه")       # ✅ این دو خط رو اضافه کن
     نوع_شرکت = data.get("نوع شرکت")          #
 
+    # اگر کاربر دکمه بازگشت زد
+    if text == BACK_BTN:
+        handle_back(update, context)
+        return
+    
     if "موضوع صورتجلسه" not in data:
         context.bot.send_message(chat_id=chat_id, text="لطفاً ابتدا موضوع صورتجلسه را انتخاب کنید. برای شروع مجدد /start را ارسال کنید .")
         return
