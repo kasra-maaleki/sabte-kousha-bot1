@@ -74,8 +74,8 @@ def start(update: Update, context: CallbackContext):
     update.message.reply_text(
         "به خدمات ثبتی کوشا خوش آمدید 🙏🏼\n"
         "در کمتر از چند دقیقه، صورتجلسه رسمی و دقیق شرکت خود را آماده دریافت خواهید کرد.\n"
-        "همه‌چیز طبق آخرین قوانین ثبت شرکت‌ها تنظیم می‌شود."
-        reply_markup=main_keyboard()  # ← اینجا کیبورد بازگشت اضافه شد
+        "همه‌چیز طبق آخرین قوانین ثبت شرکت‌ها تنظیم می‌شود.",
+        reply_markup=main_keyboard()
     )
     keyboard = [
         [InlineKeyboardButton("🏢 تغییر آدرس", callback_data='تغییر آدرس')],
