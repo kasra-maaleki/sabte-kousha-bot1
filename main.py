@@ -112,23 +112,6 @@ def start(update: Update, context: CallbackContext):
     send_topic_menu(chat_id, context)
 
 
-def handle_back(update: Update, context: CallbackContext):
-    chat_id = update.message.chat_id
-    data = user_data.get(chat_id, {})
-    step = data.get("step", 0)
-
-    # اگر در مرحله اول هستیم
-    if step <= 1:
-        context.bot.send_message(chat_id=chat_id, text="به ابتدای فرم برگشتید.")
-        return
-
-    # برگرد به مرحله قبلی
-    data["step"] = step - 1
-
-    # فیلد قبلی رو پیدا کن و دوباره سوالش رو بپرس
-    prev_field = fields[data["step"]]
-    context.bot.send_message(chat_id=chat_id, text=get_label(prev_field))
-
 def handle_message(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     text = update.message.text.strip()
