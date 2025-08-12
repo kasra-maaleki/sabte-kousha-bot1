@@ -1199,7 +1199,8 @@ def send_summary(chat_id, context):
         os.remove(file_path)
         return
 
-    if موضوع == "تغییر موضوع فعالیت" و نوع_شرکت == "مسئولیت محدود":
+    if موضوع == "تغییر موضوع فعالیت" and نوع_شرکت == "مسئولیت محدود":
+        
         count = data.get("تعداد شرکا", 0)
         partners_lines = ""
         for i in range(1, count + 1):
