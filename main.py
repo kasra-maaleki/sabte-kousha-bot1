@@ -1330,20 +1330,26 @@ def handle_back(update: Update, context: CallbackContext):
 
         # 17: تعداد سهامداران بعد
         if step == 17:
+            # در این لحظه حلقه «سهامداران قبل» کامل شده و
+            # data["سهامدار_قبل_index"] روی آخرین i باقی مانده است.
             i = data.get("سهامدار_قبل_index", 1)
-            if i > 1:
-                prev_i = i - 1
-                data["سهامدار_قبل_index"] = prev_i
-                data.pop(f"سهامدار قبل {prev_i} تعداد", None)
-                data["step"] = 16
-                context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار قبل شماره {prev_i} را وارد کنید:")
-                return
-            else:
-                data.pop("سهامدار قبل 1 نام", None)
-                data.pop("سهامدار قبل 1 تعداد", None)  # حتماً این خط باشد
-                data["step"] = 16
-                context.bot.send_message(chat_id=chat_id, text="نام سهامدار قبل شماره ۱ را وارد کنید:")
-                return
+        
+            # ❌ نباید برگردیم به سهامدار قبلی (i-1) یا نام را پاک کنیم.
+            # ✅ فقط باید یک قدم برگردیم به مرحله 16 و «تعداد سهامِ همان i» را دوباره بپرسیم.
+        
+            # اگر قبلاً کاربر عدد «تعداد سهامداران بعد» را زده بود، آن را پاک کن
+            data.pop("تعداد سهامداران بعد", None)
+        
+            # اگر «تعداد سهامِ سهامدار قبلِ i» ثبت شده، پاکش کن تا دوباره پرسیده شود
+            # (اگر نبود هم مشکلی نیست)
+            data.pop(f"سهامدار قبل {i} تعداد", None)
+        
+            data["step"] = 16
+            context.bot.send_message(
+                chat_id=chat_id,
+                text=f"تعداد سهام سهامدار قبل شماره {i} را وارد کنید (اعداد فارسی):"
+            )
+            return
 
         # 18: حلقه سهامداران بعد (نام/تعداد)
         if step == 18:
