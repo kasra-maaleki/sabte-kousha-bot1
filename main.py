@@ -1331,16 +1331,30 @@ def handle_back(update: Update, context: CallbackContext):
         if step == 18:
             i = data.get("سهامدار_بعد_index", 1)
             prefix = f"سهامدار بعد {i}"
+        
+            # اگر هنوز نامِ i ثبت نشده
             if f"{prefix} نام" not in data:
-                data.pop("تعداد سهامداران بعد", None)
-                data["step"] = 17
-                context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران بعد از نقل و انتقال را وارد کنید:")
+                if i == 1:
+                    # برگرد به «تعداد سهامداران بعد»
+                    data.pop("تعداد سهامداران بعد", None)
+                    data["step"] = 17
+                    context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران بعد از نقل و انتقال را وارد کنید:")
+                else:
+                    # برگرد به «تعداد سهام سهامدار بعدِ قبلی»
+                    prev_i = i - 1
+                    data["سهامدار_بعد_index"] = prev_i
+                    data.pop(f"سهامدار بعد {prev_i} تعداد", None)
+                    data["step"] = 18
+                    context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار بعد شماره {prev_i} را وارد کنید:")
                 return
+        
+            # اگر نام ثبت شده ولی تعداد نه → برگرد به «نام سهامدار i»
             if f"{prefix} تعداد" not in data:
                 data.pop(f"{prefix} نام", None)
                 data["step"] = 18
                 context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار بعد شماره {i} را وارد کنید:")
                 return
+
 
         # 19: وکیل
         if step == 19:
