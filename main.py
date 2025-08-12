@@ -928,8 +928,11 @@ def handle_message(update: Update, context: CallbackContext):
             send_summary(chat_id, context)
         return
 
-    context.bot.send_message(chat_id=chat_id, text="لطفاً منتظر بمانید...")
-
+    context.bot.send_message(
+        chat_id=chat_id,
+        text="دستور نامعتبر یا مرحله ناشناخته است. برای بازگشت از دکمه «⬅️ بازگشت» استفاده کنید یا /start بزنید."
+    )
+    
 def get_label(field):
     labels = {
         "نوع شرکت": "نوع شرکت را انتخاب کنید:",
@@ -979,65 +982,6 @@ def handle_back(update: Update, context: CallbackContext):
         context.bot.send_message(chat_id=chat_id, text="به انتخاب نوع شرکت برگشتید.")
         send_company_type_menu(chat_id, context)
         return
-
-    # --------------------------------------
-    # بازگشت: انحلال شرکت - سهامی خاص
-    # --------------------------------------
-    if موضوع == "انحلال شرکت" and نوع_شرکت == "سهامی خاص":
-        linear_map = {
-            1: "نام شرکت", 2: "شماره ثبت", 3: "شناسه ملی", 4: "سرمایه",
-            5: "تاریخ", 6: "ساعت", 7: "مدیر عامل", 8: "نایب رییس",
-            9: "رییس", 10: "منشی", 11: "علت انحلال", 12: "نام مدیر تصفیه",
-            13: "کد ملی مدیر تصفیه", 14: "مدت مدیر تصفیه", 15: "آدرس مدیر تصفیه",
-            16: "تعداد سهامداران حاضر"
-        }
-
-        # برگشت در مسیر خطی تا قبل از حلقه سهامداران
-        if 2 <= step <= 16:
-            prev_step = step - 1
-            key = linear_map.get(prev_step)
-            if key:
-                data.pop(key, None)
-                data["step"] = prev_step
-                context.bot.send_message(chat_id=chat_id, text=get_label(key) if key in fields else f"{key} را وارد کنید:")
-                return
-
-        # 17: داخل حلقه سهامداران (نام/تعداد)
-        if step == 17:
-            i = data.get("سهامدار_index", 1)
-            if f"سهامدار {i} نام" not in data:
-                # برگرد به تعداد سهامداران
-                data.pop("تعداد سهامداران حاضر", None)
-                data["step"] = 16
-                context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران حاضر را وارد کنید (عدد):")
-                return
-            if f"سهامدار {i} تعداد" not in data:
-                data.pop(f"سهامدار {i} نام", None)
-                data["step"] = 17
-                context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار {i} را وارد کنید:")
-                return
-            # اگر هر دو مقدار پر شده، به سهامدار قبلی برگرد
-            if i > 1:
-                data.pop(f"سهامدار {i} نام", None)
-                data.pop(f"سهامدار {i} تعداد", None)
-                data["سهامدار_index"] = i - 1
-                context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار {i-1} را وارد کنید (اعداد فارسی):")
-                return
-            else:
-                data.pop(f"سهامدار 1 نام", None)
-                data["step"] = 17
-                context.bot.send_message(chat_id=chat_id, text="نام سهامدار ۱ را وارد کنید:")
-                return
-
-        # 18: وکیل
-        if step == 18:
-            # برگرد به آخرین سهامدار (تعداد)
-            i = data.get("سهامدار_index", 1)
-            data.pop("وکیل", None)
-            if i >= 1:
-                data["step"] = 17
-                context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار {i} را وارد کنید (اعداد فارسی):")
-                return
     
     # --------------------------------------
     # بازگشت: تغییر موضوع فعالیت – سهامی خاص
@@ -1428,6 +1372,81 @@ def handle_back(update: Update, context: CallbackContext):
                 context.bot.send_message(chat_id=chat_id, text="نام سهامدار بعد شماره ۱ را وارد کنید:")
                 return
 
+    # --------------------------------------
+    # بازگشت: انحلال شرکت - سهامی خاص
+    # --------------------------------------
+    if موضوع == "انحلال شرکت" and نوع_شرکت == "سهامی خاص":
+        # مراحل خطی تا قبل از حلقه سهامداران
+        linear_map = {
+            1: "نام شرکت", 2: "شماره ثبت", 3: "شناسه ملی", 4: "سرمایه",
+            5: "تاریخ", 6: "ساعت", 7: "مدیر عامل", 8: "نایب رییس",
+            9: "رییس", 10: "منشی", 11: "علت انحلال", 12: "نام مدیر تصفیه",
+            13: "کد ملی مدیر تصفیه", 14: "مدت مدیر تصفیه", 15: "آدرس مدیر تصفیه",
+            16: "تعداد سهامداران حاضر"
+        }
+
+        # برگشت در مسیر خطی: برگرد به سؤال قبلی و همان را بپرس
+        if 2 <= step <= 16:
+            prev_step = step - 1
+            key = linear_map.get(prev_step)
+            if key:
+                data.pop(key, None)
+                data["step"] = prev_step
+                # اگر key در get_label نیست، متن سؤال را خودمان می‌دهیم
+                label = get_label(key) if key in fields else {
+                    "علت انحلال": "علت انحلال را وارد کنید (مثلاً: مشکلات اقتصادی):",
+                    "نام مدیر تصفیه": "نام مدیر تصفیه را وارد کنید:",
+                    "کد ملی مدیر تصفیه": "کد ملی مدیر تصفیه را وارد کنید (اعداد فارسی):",
+                    "مدت مدیر تصفیه": "مدت مدیر تصفیه (سال) را وارد کنید (اعداد فارسی):",
+                    "آدرس مدیر تصفیه": "آدرس مدیر تصفیه و محل تصفیه را وارد کنید:",
+                    "تعداد سهامداران حاضر": "تعداد سهامداران حاضر را وارد کنید (عدد):",
+                }.get(key, f"{key} را وارد کنید:")
+                context.bot.send_message(chat_id=chat_id, text=label)
+                return
+
+        # حلقه سهامداران: step == 17  (نام ← تعداد)
+        if step == 17:
+            i = data.get("سهامدار_index", 1)
+
+            # اگر هنوز نامِ سهامدار i ثبت نشده، برگرد به «تعداد سهامداران حاضر»
+            if f"سهامدار {i} نام" not in data:
+                data.pop("تعداد سهامداران حاضر", None)
+                data["step"] = 16
+                context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران حاضر را وارد کنید (عدد):")
+                return
+
+            # اگر نام ثبت شده ولی تعدادِ سهام نه → برگرد به «نام سهامدار i»
+            if f"سهامدار {i} تعداد" not in data:
+                data.pop(f"سهامدار {i} نام", None)
+                data["step"] = 17
+                context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار {i} را وارد کنید:")
+                return
+
+            # هر دو مقدارِ سهامدار i پر است → برو به سهامدار قبلی
+            if i > 1:
+                # مقدارهای سهامدار فعلی را پاک و ایندکس را یکی کم کن
+                data.pop(f"سهامدار {i} نام", None)
+                data.pop(f"سهامدار {i} تعداد", None)
+                data["سهامدار_index"] = i - 1
+                data["step"] = 17
+                # حالا از کاربر «تعداد سهام سهامدار قبلی» را بخواه
+                context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار {i-1} را وارد کنید (اعداد فارسی):")
+                return
+            else:
+                # i == 1 → برگرد ابتدای حلقه (نام سهامدار 1)
+                data.pop("سهامدار 1 نام", None)
+                data["step"] = 17
+                context.bot.send_message(chat_id=chat_id, text="نام سهامدار ۱ را وارد کنید:")
+                return
+
+        # وکیل: step == 18 → برگرد به آخرین سهامدار (تعداد)
+        if step == 18:
+            i = data.get("سهامدار_index", 1)
+            data.pop("وکیل", None)
+            data["step"] = 17
+            context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار {i} را وارد کنید (اعداد فارسی):")
+            return
+            
     # -------------------------------
     # حالت عمومی پیش‌فرض (مسیرهای ساده)
     # -------------------------------
