@@ -1217,35 +1217,53 @@ def handle_back(update: Update, context: CallbackContext):
         if step == 12:
             i = data.get("فروشنده_index", 1)
             prefix = f"فروشنده {i}"
-            # منتظر نام فروشنده i
+            # اگر هنوز نام فروشنده i ثبت نیست، یک قدم برگرد
             if f"{prefix} نام" not in data:
                 if i == 1:
                     data.pop("تعداد فروشندگان", None)
                     data["step"] = 11
                     context.bot.send_message(chat_id=chat_id, text="تعداد فروشندگان را وارد کنید:")
                     return
-                else:
-                    # برگرد به آدرس آخرین خریدارِ فروشنده قبلی
-                    prev_i = i - 1
-                    total_k = data.get(f"تعداد خریداران {prev_i}", 1)
-                    data["فروشنده_index"] = prev_i
-                    data[f"خریدار_index_{prev_i}"] = total_k
-                    data.pop(f"خریدار {prev_i}-{total_k} آدرس", None)
-                    data["step"] = 14
-                    context.bot.send_message(chat_id=chat_id, text=f"آدرس خریدار {total_k} از فروشنده {prev_i} را وارد کنید:")
+                # ← فروشنده قبلی
+                prev_i = i - 1
+                data["فروشنده_index"] = prev_i
+        
+                # اگر اصلاً تعداد خریداران برای فروشنده قبلی ثبت نشده بود ↩️ به مرحله ۱۳
+                if f"تعداد خریداران {prev_i}" not in data:
+                    data["step"] = 13
+                    context.bot.send_message(chat_id=chat_id, text=f"تعداد خریداران برای فروشنده {prev_i} را وارد کنید:")
                     return
-            # منتظر کدملی
-            if f"{prefix} کد ملی" not in data:
-                data.pop(f"{prefix} نام", None)
-                data["step"] = 12
-                context.bot.send_message(chat_id=chat_id, text=f"نام فروشنده شماره {i} را وارد کنید:")
+        
+                k = data.get(f"خریدار_index_{prev_i}", 1)
+        
+                # اگر آدرس همین خریدار ثبت شده بوده، همان را یک قدم برگرد
+                if f"خریدار {prev_i}-{k} آدرس" in data:
+                    data.pop(f"خریدار {prev_i}-{k} آدرس", None)
+                    data["step"] = 14
+                    context.bot.send_message(chat_id=chat_id, text=f"آدرس خریدار {k} از فروشنده {prev_i} را وارد کنید:")
+                    return
+        
+                # اگر کد ملی ثبت شده بوده، همان را یک قدم برگرد
+                if f"خریدار {prev_i}-{k} کد ملی" in data:
+                    data.pop(f"خریدار {prev_i}-{k} کد ملی", None)
+                    data["step"] = 14
+                    context.bot.send_message(chat_id=chat_id, text=f"کد ملی خریدار {k} از فروشنده {prev_i} را وارد کنید:")
+                    return
+        
+                # اگر فقط نام بوده، همان را یک قدم برگرد
+                if f"خریدار {prev_i}-{k} نام" in data:
+                    data.pop(f"خریدار {prev_i}-{k} نام", None)
+                    data["step"] = 14
+                    context.bot.send_message(chat_id=chat_id, text=f"نام خریدار شماره {k} از فروشنده {prev_i} را وارد کنید:")
+                    return
+        
+                # هیچ‌کدام نبود → عدد خریداران را دوباره بگیر
+                data["step"] = 13
+                context.bot.send_message(chat_id=chat_id, text=f"تعداد خریداران برای فروشنده {prev_i} را وارد کنید:")
                 return
-            # منتظر تعداد
-            if f"{prefix} تعداد" not in data:
-                data.pop(f"{prefix} کد ملی", None)
-                data["step"] = 12
-                context.bot.send_message(chat_id=chat_id, text=f"کد ملی فروشنده شماره {i} را وارد کنید:")
-                return
+
+    # اگر «نام» ثبت شده ولی هنوز «کدملی/تعداد» نه، منطق فعلی‌ات برای همان i بماند.
+
 
         # 13: تعداد خریداران برای فروشنده i
         if step == 13:
@@ -1322,7 +1340,7 @@ def handle_back(update: Update, context: CallbackContext):
                 return
             else:
                 data.pop("سهامدار قبل 1 نام", None)
-                data.pop("سهامدار قبل 1 تعداد", None)   # ← اضافه شود
+                data.pop("سهامدار قبل 1 تعداد", None)  # حتماً این خط باشد
                 data["step"] = 16
                 context.bot.send_message(chat_id=chat_id, text="نام سهامدار قبل شماره ۱ را وارد کنید:")
                 return
