@@ -1322,6 +1322,7 @@ def handle_back(update: Update, context: CallbackContext):
                 return
             else:
                 data.pop("سهامدار قبل 1 نام", None)
+                data.pop("سهامدار قبل 1 تعداد", None)   # ← اضافه شود
                 data["step"] = 16
                 context.bot.send_message(chat_id=chat_id, text="نام سهامدار قبل شماره ۱ را وارد کنید:")
                 return
@@ -1353,6 +1354,7 @@ def handle_back(update: Update, context: CallbackContext):
                 return
             else:
                 data.pop("سهامدار بعد 1 نام", None)
+                data.pop("سهامدار بعد 1 تعداد", None)   # ← اضافه شود
                 data["step"] = 18
                 context.bot.send_message(chat_id=chat_id, text="نام سهامدار بعد شماره ۱ را وارد کنید:")
                 return
