@@ -1336,20 +1336,19 @@ def handle_back(update: Update, context: CallbackContext):
                 return
     
         # 17: تعداد سهامداران بعد
+        # 17: تعداد سهامداران بعد  ← با Back باید به "تعداد" آخرین سهامدارِ قبل برگردد
         if step == 17:
-            i = data.get("سهامدار_قبل_index", 1)
-            if i > 1:
-                prev_i = i - 1
-                data["سهامدار_قبل_index"] = prev_i
-                data.pop(f"سهامدار قبل {prev_i} تعداد", None)
-                data["step"] = 16
-                context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار قبل شماره {prev_i} را وارد کنید:")
-                return
-            # فقط یک سهامدار قبل
-            data.pop("سهامدار قبل 1 نام", None)
-            data.pop("سهامدار قبل 1 تعداد", None)
+            maxc = data.get("تعداد سهامداران قبل", 1)
+            i = data.get("سهامدار_قبل_index", maxc)
+            # اگر به هر دلیلی index از max جلوتر است، روی آخرین نفر قفل کن
+            if i > maxc:
+                i = maxc
+                data["سهامدار_قبل_index"] = i
+        
+            # فقط یک قدم به عقب: "تعداد" آخرین سهامدار را پاک کن و همان را دوباره بپرس
+            data.pop(f"سهامدار قبل {i} تعداد", None)
             data["step"] = 16
-            context.bot.send_message(chat_id=chat_id, text="نام سهامدار قبل شماره ۱ را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار قبل شماره {i} را وارد کنید:")
             return
     
         # 18: حلقه سهامداران بعد (نام/تعداد)
@@ -1394,20 +1393,19 @@ def handle_back(update: Update, context: CallbackContext):
                 return
     
         # 19: وکیل
+        # 19: وکیل  ← با Back باید به "تعداد" آخرین سهامدارِ بعد برگردد
         if step == 19:
-            i = data.get("سهامدار_بعد_index", 1)
-            if i > 1:
-                prev_i = i - 1
-                data["سهامدار_بعد_index"] = prev_i
-                data.pop(f"سهامدار بعد {prev_i} تعداد", None)
-                data["step"] = 18
-                context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار بعد شماره {prev_i} را وارد کنید:")
-                return
-            data.pop("سهامدار بعد 1 نام", None)
-            data.pop("سهامدار بعد 1 تعداد", None)
+            maxc = data.get("تعداد سهامداران بعد", 1)
+            i = data.get("سهامدار_بعد_index", maxc)
+            if i > maxc:
+                i = maxc
+                data["سهامدار_بعد_index"] = i
+        
+            data.pop(f"سهامدار بعد {i} تعداد", None)
             data["step"] = 18
-            context.bot.send_message(chat_id=chat_id, text="نام سهامدار بعد شماره ۱ را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار بعد شماره {i} را وارد کنید:")
             return
+
 
 
     # --------------------------------------
