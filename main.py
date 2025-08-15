@@ -473,6 +473,155 @@ def handle_message(update: Update, context: CallbackContext):
             return
 
     # -------------------------------
+    # انحلال شرکت - مسئولیت محدود
+    # steps: 1..6 خطی، 7=تعداد شرکا، 8=نام شریک i، 9=سهم‌الشرکه شریک i،
+    # سپس: 10=علت انحلال، 11=نام مدیر تصفیه، 12=کدملی مدیر تصفیه، 13=مدت، 14=آدرس، 15=وکیل → خروجی
+    # -------------------------------
+    if موضوع == "انحلال شرکت" and نوع_شرکت == "مسئولیت محدود":
+        # 1) نام شرکت
+        if step == 1:
+            data["نام شرکت"] = text
+            data["step"] = 2
+            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید (اعداد فارسی):")
+            return
+
+        # 2) شماره ثبت
+        if step == 2:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.")
+                return
+            data["شماره ثبت"] = text
+            data["step"] = 3
+            context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید (اعداد فارسی):")
+            return
+
+        # 3) شناسه ملی
+        if step == 3:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.")
+                return
+            data["شناسه ملی"] = text
+            data["step"] = 4
+            context.bot.send_message(chat_id=chat_id, text="سرمایه ثبت‌شده شرکت (ریال، اعداد فارسی):")
+            return
+
+        # 4) سرمایه
+        if step == 4:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.")
+                return
+            data["سرمایه"] = text
+            data["step"] = 5
+            context.bot.send_message(chat_id=chat_id, text="تاریخ صورتجلسه را وارد کنید (مثلاً: ۱۴۰۴/۰۵/۱۵):")
+            return
+
+        # 5) تاریخ
+        if step == 5:
+            if text.count('/') != 2:
+                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.")
+                return
+            data["تاریخ"] = text
+            data["step"] = 6
+            context.bot.send_message(chat_id=chat_id, text="ساعت جلسه را وارد کنید (اعداد فارسی):")
+            return
+
+        # 6) ساعت
+        if step == 6:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.")
+                return
+            data["ساعت"] = text
+            data["step"] = 7
+            context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (عدد):")
+            return
+
+        # 7) تعداد شرکا
+        if step == 7:
+            if not text.isdigit():
+                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
+                return
+            count = int(text)
+            if count < 2:
+                context.bot.send_message(chat_id=chat_id, text="❗️حداقل دو شریک لازم است.")
+                return
+            data["تعداد شرکا"] = count
+            data["current_partner"] = 1
+            data["step"] = 8
+            context.bot.send_message(chat_id=chat_id, text="نام شریک شماره ۱ را وارد کنید:")
+            return
+
+        # 8) نام شریک i
+        if step == 8:
+            i = data["current_partner"]
+            data[f"شریک {i}"] = text
+            data["step"] = 9
+            context.bot.send_message(chat_id=chat_id, text=f"سهم‌الشرکه شریک شماره {i} را به ریال وارد کنید (اعداد فارسی):")
+            return
+
+        # 9) سهم‌الشرکه شریک i
+        if step == 9:
+            i = data["current_partner"]
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️سهم‌الشرکه را فقط با اعداد فارسی وارد کنید.")
+                return
+            data[f"سهم الشرکه شریک {i}"] = text
+            if i < data["تعداد شرکا"]:
+                data["current_partner"] = i + 1
+                data["step"] = 8
+                context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {i+1} را وارد کنید:")
+            else:
+                data["step"] = 10
+                context.bot.send_message(chat_id=chat_id, text="علت انحلال را وارد کنید (مثلاً: مشکلات اقتصادی، توافق شرکا و ...):")
+            return
+
+        # 10..15) سایر اطلاعات و خروجی
+        if step == 10:
+            data["علت انحلال"] = text
+            data["step"] = 11
+            context.bot.send_message(chat_id=chat_id, text="نام مدیر تصفیه را وارد کنید:")
+            return
+
+        if step == 11:
+            data["نام مدیر تصفیه"] = text
+            data["step"] = 12
+            context.bot.send_message(chat_id=chat_id, text="کد ملی مدیر تصفیه را وارد کنید (اعداد فارسی):")
+            return
+
+        if step == 12:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی مدیر تصفیه را فقط با اعداد فارسی وارد کنید.")
+                return
+            data["کد ملی مدیر تصفیه"] = text
+            data["step"] = 13
+            context.bot.send_message(chat_id=chat_id, text="مدت مدیر تصفیه (سال) را وارد کنید (اعداد فارسی):")
+            return
+
+        if step == 13:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️مدت را فقط با اعداد فارسی وارد کنید.")
+                return
+            data["مدت مدیر تصفیه"] = text
+            data["step"] = 14
+            context.bot.send_message(chat_id=chat_id, text="آدرس مدیر تصفیه و محل تصفیه را وارد کنید:")
+            return
+
+        if step == 14:
+            data["آدرس مدیر تصفیه"] = text
+            data["step"] = 15
+            context.bot.send_message(chat_id=chat_id, text="نام وکیل (ثبت‌کننده صورتجلسه) را وارد کنید:")
+            return
+
+        if step == 15:
+            data["وکیل"] = text
+            send_summary(chat_id, context)
+            data["step"] = 16
+            return
+
+        if step >= 16:
+            context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات قبلاً ثبت شده است. برای شروع مجدد /start را ارسال کنید.")
+            return
+
+    # -------------------------------
     # انحلال شرکت - سهامی خاص
     # steps خطی: 1..15 سپس حلقه سهامداران 16/17، و در پایان 18=وکیل
     # -------------------------------
@@ -1406,7 +1555,99 @@ def handle_back(update: Update, context: CallbackContext):
             context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار بعد شماره {i} را وارد کنید:")
             return
 
+    # --------------------------------------
+    # بازگشت: انحلال شرکت - مسئولیت محدود
+    # مراحل: 1..6 خطی، 7=تعداد شرکا، 8/9 حلقه شرکا، 10..15 فیلدهای پایانی
+    # --------------------------------------
+    if موضوع == "انحلال شرکت" and نوع_شرکت == "مسئولیت محدود":
+        # خطی 2..6 → یک قدم عقب
+        if 2 <= step <= 6:
+            prev_step = step - 1
+            order = ["نام شرکت","شماره ثبت","شناسه ملی","سرمایه","تاریخ","ساعت"]
+            key = order[prev_step - 1] if prev_step - 1 < len(order) else None
+            if prev_step == 1:
+                data.pop("نام شرکت", None)
+                data["step"] = 1
+                context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
+                return
+            if key:
+                data.pop(key, None)
+                data["step"] = prev_step
+                context.bot.send_message(chat_id=chat_id, text=get_label(key))
+                return
 
+        # 7 → برگرد به 6 (ساعت)
+        if step == 7:
+            data.pop("تعداد شرکا", None)
+            data["step"] = 6
+            context.bot.send_message(chat_id=chat_id, text=get_label("ساعت"))
+            return
+
+        # 8/9: حلقه شرکا (نام ← سهم)
+        if step in (8, 9):
+            i = data.get("current_partner", 1)
+            if step == 8:
+                # منتظر «نام شریک i»
+                if i == 1:
+                    data.pop("تعداد شرکا", None)
+                    data["step"] = 7
+                    context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (عدد):")
+                    return
+                prev_i = i - 1
+                data["current_partner"] = prev_i
+                data.pop(f"سهم الشرکه شریک {prev_i}", None)
+                data["step"] = 9
+                context.bot.send_message(chat_id=chat_id, text=f"سهم‌الشرکه شریک شماره {prev_i} را به ریال وارد کنید (اعداد فارسی):")
+                return
+            else:  # step == 9 → منتظر «سهم‌الشرکه»
+                data.pop(f"شریک {i}", None)
+                data["step"] = 8
+                context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {i} را وارد کنید:")
+                return
+
+        # 10: علت انحلال ← برگرد به سهم‌الشرکه آخرین شریک
+        if step == 10:
+            i = data.get("current_partner", data.get("تعداد شرکا", 1))
+            if i and i >= 1 and f"سهم الشرکه شریک {i}" in data:
+                data.pop(f"سهم الشرکه شریک {i}", None)
+                data["step"] = 9
+                context.bot.send_message(chat_id=chat_id, text=f"سهم‌الشرکه شریک شماره {i} را به ریال وارد کنید (اعداد فارسی):")
+            else:
+                data.pop("تعداد شرکا", None)
+                data["step"] = 7
+                context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (عدد):")
+            return
+
+        # 11..15: یک قدم به عقب در مسیر پایانی
+        if step == 11:
+            data.pop("علت انحلال", None)
+            data["step"] = 10
+            context.bot.send_message(chat_id=chat_id, text="علت انحلال را وارد کنید (مثلاً: مشکلات اقتصادی، توافق شرکا و ...):")
+            return
+
+        if step == 12:
+            data.pop("نام مدیر تصفیه", None)
+            data["step"] = 11
+            context.bot.send_message(chat_id=chat_id, text="نام مدیر تصفیه را وارد کنید:")
+            return
+
+        if step == 13:
+            data.pop("کد ملی مدیر تصفیه", None)
+            data["step"] = 12
+            context.bot.send_message(chat_id=chat_id, text="کد ملی مدیر تصفیه را وارد کنید (اعداد فارسی):")
+            return
+
+        if step == 14:
+            data.pop("مدت مدیر تصفیه", None)
+            data["step"] = 13
+            context.bot.send_message(chat_id=chat_id, text="مدت مدیر تصفیه (سال) را وارد کنید (اعداد فارسی):")
+            return
+
+        if step == 15:
+            data.pop("آدرس مدیر تصفیه", None)
+            data["step"] = 14
+            context.bot.send_message(chat_id=chat_id, text="آدرس مدیر تصفیه و محل تصفیه را وارد کنید:")
+            return
 
     # --------------------------------------
     # بازگشت: انحلال شرکت - سهامی خاص
@@ -1868,6 +2109,54 @@ def send_summary(chat_id, context):
         os.remove(file_path)
         return
 
+    # -------------------------------
+    # خروجی: انحلال شرکت - مسئولیت محدود
+    # -------------------------------
+    if موضوع == "انحلال شرکت" and نوع_شرکت == "مسئولیت محدود":
+        # ساخت لیست شرکا
+        partners_lines = ""
+        count = data.get("تعداد شرکا", 0)
+        for i in range(1, count + 1):
+            name = data.get(f"شریک {i}", "")
+            share = data.get(f"سهم الشرکه شریک {i}", "")
+            partners_lines += f"{name}                                              {share} ریال\n"
+
+        # امضاها: هر دو نام در یک خط، بعدی خط بعد (برای خوانایی)
+        signer_lines = ""
+        for i in range(1, count + 1):
+            signer_lines += data.get(f"شریک {i}", "")
+            if i % 2 == 1 and i != count:
+                signer_lines += "\t"
+            else:
+                signer_lines += "\n"
+
+        text = f"""صورتجلسه انحلال شرکت {data['نام شرکت']} ({نوع_شرکت})
+شماره ثبت شرکت :     {data['شماره ثبت']}
+شناسه ملی :      {data['شناسه ملی']}
+سرمایه ثبت شده : {data['سرمایه']} ریال
+
+صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} ({نوع_شرکت}) ثبت شده به شماره {data['شماره ثبت']} در تاریخ  {data['تاریخ']} ساعت {data['ساعت']} با حضور کلیه شرکا در محل قانونی شرکت تشکیل و تصمیمات ذیل اتخاذ گردید.
+
+اسامی شرکا                                                        میزان سهم الشرکه
+{partners_lines}
+دستور جلسه، اتخاذ تصمیم در خصوص انحلال شرکت {data['نام شرکت']} ){نوع_شرکت}( پس از بحث و بررسی شرکت بعلت {data['علت انحلال']} منحل گردید و آقای {data['نام مدیر تصفیه']} به شماره ملی {data['کد ملی مدیر تصفیه']} به سمت مدیر تصفیه برای مدت {data['مدت مدیر تصفیه']} سال انتخاب شد. آدرس مدیر تصفیه و محل تصفیه {data['آدرس مدیر تصفیه']} می باشد.
+مدیر تصفیه اقرار به دریافت کلیه اموال دارایی ها و دفاتر و اوراق و اسناد مربوط به شرکت را نمود.
+
+به {data['وکیل']} از شرکاء یا وکیل رسمی شرکت وکالت داده می شود که ضمن مراجعه به اداره ثبت شرکت ها نسبت به ثبت صورتجلسه و پرداخت حق الثبت و امضاء ذیل دفاتر ثبت اقدام نماید.
+
+امضاء شرکاء: 
+
+{signer_lines}"""
+
+        # ارسال متن و فایل Word
+        context.bot.send_message(chat_id=chat_id, text=text)
+        file_path = generate_word_file(text)
+        with open(file_path, 'rb') as f:
+            context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه انحلال مسئولیت محدود.docx")
+        os.remove(file_path)
+        return
+
+    
     # -------------------------------
     # خروجی: انحلال شرکت - سهامی خاص
     # -------------------------------
