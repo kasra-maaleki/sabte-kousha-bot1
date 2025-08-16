@@ -39,6 +39,22 @@ def fa_to_en_number(text):
     table = str.maketrans('۰۱۲۳۴۵۶۷۸۹', '0123456789')
     return text.translate(table)
 
+def is_valid_persian_national_id(s: str) -> bool:
+    """بررسی کند که ورودی دقیقاً ۱۰ رقم فارسی باشد"""
+    if not s or len(s) != 10:
+        return False
+    return all('۰' <= ch <= '۹' for ch in s)
+
+def is_valid_persian_date(s: str) -> bool:
+    # الگوی YYYY/MM/DD با اعداد فارسی
+    return bool(re.fullmatch(r"[۰-۹]{4}/[۰-۹]{2}/[۰-۹]{2}", s or ""))
+
+def has_min_digits_fa(s: str, n: int = 10) -> bool:
+    # تبدیل به انگلیسی و شمارش رقم‌ها
+    en = fa_to_en_number(s or "")
+    digits = "".join(ch for ch in en if ch.isdigit())
+    return len(digits) >= n
+
 def generate_word_file(text: str, filepath: str = None):
     doc = Document()
 
@@ -127,6 +143,7 @@ def get_label(field, **kwargs):
         "آدرس جدید": "آدرس جدید شرکت را وارد کنید:",
         "کد پستی": "کد پستی آدرس جدید را وارد کنید (اعداد فارسی):",
         "وکیل": "نام وکیل (ثبت‌کننده صورتجلسه) را وارد کنید:",
+        "شماره دفترخانه": "شماره دفترخانه فروشنده {i} را وارد کنید (مثلاً: 22 تهران):",
 
         # برچسب‌های مخصوص انحلال
         "علت انحلال": "علت انحلال را وارد کنید (مثلاً: مشکلات اقتصادی):",
@@ -630,8 +647,8 @@ def handle_message(update: Update, context: CallbackContext):
             return
 
         if step == 12:
-            if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی مدیر تصفیه را فقط با اعداد فارسی وارد کنید.")
+            if not is_valid_persian_national_id(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی باید دقیقاً ۱۰ رقم فارسی باشد.")
                 return
             data["کد ملی مدیر تصفیه"] = text
             data["step"] = 13
@@ -762,8 +779,8 @@ def handle_message(update: Update, context: CallbackContext):
             return
 
         if step == 13:
-            if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی مدیر تصفیه را فقط با اعداد فارسی وارد کنید.")
+            if not is_valid_persian_national_id(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی باید دقیقاً ۱۰ رقم فارسی باشد.")
                 return
             data["کد ملی مدیر تصفیه"] = text
             data["step"] = 14
@@ -865,12 +882,12 @@ def handle_message(update: Update, context: CallbackContext):
             return
 
         if step == 5:
-            if text.count('/') != 2:
-                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.")
+            if not is_valid_persian_date(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. نمونه: ۱۴۰۴/۰۵/۱۵")
                 return
             data["تاریخ"] = text
             data["step"] = 6
-            context.bot.send_message(chat_id=chat_id, text="ساعت جلسه را وارد کنید (اعداد فارسی):")
+            context.bot.send_message(chat_id=chat_id, text=get_label("ساعت"))
             return
 
         if step == 6:
@@ -888,12 +905,15 @@ def handle_message(update: Update, context: CallbackContext):
                 context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
                 return
             count = int(text)
+            if count < 2:
+                context.bot.send_message(chat_id=chat_id, text="❗️حداقل دو شریک لازم است.")
+                return
             data["تعداد شرکا"] = count
             data["current_partner"] = 1
             data["step"] = 8
-            context.bot.send_message(chat_id=chat_id, text="نام شریک شماره ۱ را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text=get_label("نام شریک", i=1))
             return
-
+            
         if step == 8:
             i = data["current_partner"]
             data[f"شریک {i}"] = text
@@ -937,13 +957,14 @@ def handle_message(update: Update, context: CallbackContext):
 
         if step == 12:
             i = data["فروشنده_index"]
-            if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی را فقط با اعداد فارسی وارد کنید.")
+            if not is_valid_persian_national_id(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی باید دقیقاً ۱۰ رقم فارسی باشد.")
                 return
             data[f"فروشنده {i} کد ملی"] = text
             data["step"] = 13
-            context.bot.send_message(chat_id=chat_id, text=f"کل سهم‌الشرکه فروشنده {i} (ریال):")
+            context.bot.send_message(chat_id=chat_id, text=get_label("سهم کل فروشنده", i=i))
             return
+
 
         if step == 13:
             i = data["فروشنده_index"]
@@ -964,9 +985,12 @@ def handle_message(update: Update, context: CallbackContext):
 
         if step == 15:
             i = data["فروشنده_index"]
+            if not is_valid_persian_date(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. نمونه: ۱۴۰۴/۰۵/۱۵")
+                return
             data[f"فروشنده {i} تاریخ سند"] = text
             data["step"] = 16
-            context.bot.send_message(chat_id=chat_id, text=f"شماره دفترخانه فروشنده {i} را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text=get_label("شماره دفترخانه", i=i))
             return
 
         if step == 16:
@@ -1006,21 +1030,26 @@ def handle_message(update: Update, context: CallbackContext):
         if step == 20:
             i = data["فروشنده_index"]
             k = data[f"خریدار_index_{i}"]
+            if not is_valid_persian_date(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. نمونه: ۱۴۰۴/۰۵/۱۵")
+                return
             data[f"خریدار {i}-{k} تولد"] = text
             data["step"] = 21
-            context.bot.send_message(chat_id=chat_id, text=f"کد ملی خریدار {k} از فروشنده {i} (اعداد فارسی):")
+            context.bot.send_message(chat_id=chat_id, text=get_label("کد ملی خریدار", i=i, k=k))
             return
+
 
         if step == 21:
             i = data["فروشنده_index"]
             k = data[f"خریدار_index_{i}"]
-            if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی را فقط با اعداد فارسی وارد کنید.")
+            if not is_valid_persian_national_id(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی باید دقیقاً ۱۰ رقم فارسی باشد.")
                 return
             data[f"خریدار {i}-{k} کد ملی"] = text
             data["step"] = 22
-            context.bot.send_message(chat_id=chat_id, text=f"آدرس خریدار {k} از فروشنده {i}:")
+            context.bot.send_message(chat_id=chat_id, text=get_label("آدرس خریدار", i=i, k=k))
             return
+
 
         if step == 22:
             i = data["فروشنده_index"]
