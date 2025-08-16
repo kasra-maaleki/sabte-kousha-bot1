@@ -198,8 +198,113 @@ def handle_message(update: Update, context: CallbackContext):
 
     # تعریف فیلدهای پایه برای تغییر آدرس مسئولیت محدود
     common_fields = ["نام شرکت", "شماره ثبت", "شناسه ملی", "سرمایه", "تاریخ", "ساعت", "آدرس جدید", "کد پستی", "وکیل"]
+
+    # -------------------------------
+    # تغییر نام شرکت - سهامی خاص
+    # گام‌ها: 1 نام شرکت، 2 ثبت، 3 شناسه، 4 سرمایه، 5 تاریخ، 6 ساعت،
+    # 7 مدیر عامل، 8 نایب رییس، 9 رییس، 10 منشی،
+    # 11 نام جدید شرکت، 12 وکیل → خروجی
+    # -------------------------------
+    if موضوع == "تغییر نام شرکت" and نوع_شرکت == "سهامی خاص":
+        if step == 1:
+            data["نام شرکت"] = text
+            data["step"] = 2
+            context.bot.send_message(chat_id=chat_id, text=get_label("شماره ثبت"))
+            return
+    
+        if step == 2:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.")
+                return
+            data["شماره ثبت"] = text
+            data["step"] = 3
+            context.bot.send_message(chat_id=chat_id, text=get_label("شناسه ملی"))
+            return
+    
+        if step == 3:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.")
+                return
+            data["شناسه ملی"] = text
+            data["step"] = 4
+            context.bot.send_message(chat_id=chat_id, text=get_label("سرمایه"))
+            return
+    
+        if step == 4:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.")
+                return
+            data["سرمایه"] = text
+            data["step"] = 5
+            context.bot.send_message(chat_id=chat_id, text=get_label("تاریخ"))
+            return
+    
+        if step == 5:
+            if 'is_valid_persian_date' in globals():
+                if not is_valid_persian_date(text):
+                    context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. نمونه: ۱۴۰۴/۰۵/۱۵")
+                    return
+            else:
+                if text.count('/') != 2:
+                    context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.")
+                    return
+            data["تاریخ"] = text
+            data["step"] = 6
+            context.bot.send_message(chat_id=chat_id, text=get_label("ساعت"))
+            return
+    
+        if step == 6:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.")
+                return
+            data["ساعت"] = text
+            data["step"] = 7
+            context.bot.send_message(chat_id=chat_id, text=get_label("مدیر عامل"))
+            return
+    
+        if step == 7:
+            data["مدیر عامل"] = text
+            data["step"] = 8
+            context.bot.send_message(chat_id=chat_id, text=get_label("نایب رییس"))
+            return
+    
+        if step == 8:
+            data["نایب رییس"] = text
+            data["step"] = 9
+            context.bot.send_message(chat_id=chat_id, text=get_label("رییس"))
+            return
+    
+        if step == 9:
+            data["رییس"] = text
+            data["step"] = 10
+            context.bot.send_message(chat_id=chat_id, text=get_label("منشی"))
+            return
+    
+        if step == 10:
+            data["منشی"] = text
+            data["step"] = 11
+            context.bot.send_message(chat_id=chat_id, text=get_label("نام جدید شرکت"))
+            return
+    
+        if step == 11:
+            data["نام جدید شرکت"] = text
+            data["step"] = 12
+            context.bot.send_message(chat_id=chat_id, text=get_label("وکیل"))
+            return
+    
+        if step == 12:
+            data["وکیل"] = text
+            send_summary(chat_id, context)
+            data["step"] = 13
+            return
+    
+        if step >= 13:
+            context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات ثبت شد. برای شروع مجدد /start را ارسال کنید.")
+            return
+
     
     # حالت تغییر آدرس + مسئولیت محدود
+    
     if data.get("موضوع صورتجلسه") == "تغییر آدرس" and data.get("نوع شرکت") == "مسئولیت محدود":
         if step == 1:
             data["نام شرکت"] = text
@@ -1508,6 +1613,65 @@ def handle_back(update: Update, context: CallbackContext):
         return
 
     # --------------------------------------
+    # بازگشت: تغییر نام شرکت - سهامی خاص
+    # --------------------------------------
+    if موضوع == "تغییر نام شرکت" and نوع_شرکت == "سهامی خاص":
+        # 2..6: یک قدم عقب با لیست کلیدها
+        if 2 <= step <= 6:
+            prev_step = step - 1
+            order = ["نام شرکت","شماره ثبت","شناسه ملی","سرمایه","تاریخ","ساعت"]
+            key = order[prev_step - 1] if prev_step - 1 < len(order) else None
+            if prev_step == 1:
+                data.pop("نام شرکت", None)
+                data["step"] = 1
+                context.bot.send_message(chat_id=chat_id, text=get_label("نام شرکت"))
+                return
+            if key:
+                data.pop(key, None)
+                data["step"] = prev_step
+                context.bot.send_message(chat_id=chat_id, text=get_label(key))
+                return
+    
+        # 7..10: هیئت‌رئیسه
+        if step == 7:
+            data["step"] = 6
+            context.bot.send_message(chat_id=chat_id, text=get_label("ساعت"))
+            return
+        if step == 8:
+            data.pop("مدیر عامل", None)
+            data["step"] = 7
+            context.bot.send_message(chat_id=chat_id, text=get_label("مدیر عامل"))
+            return
+        if step == 9:
+            data.pop("نایب رییس", None)
+            data["step"] = 8
+            context.bot.send_message(chat_id=chat_id, text=get_label("نایب رییس"))
+            return
+        if step == 10:
+            data.pop("رییس", None)
+            data["step"] = 9
+            context.bot.send_message(chat_id=chat_id, text=get_label("رییس"))
+            return
+    
+        # 11..12: نام جدید ← وکیل
+        if step == 11:
+            data.pop("منشی", None)
+            data["step"] = 10
+            context.bot.send_message(chat_id=chat_id, text=get_label("منشی"))
+            return
+        if step == 12:
+            data.pop("نام جدید شرکت", None)
+            data["step"] = 11
+            context.bot.send_message(chat_id=chat_id, text=get_label("نام جدید شرکت"))
+            return
+    
+        # 1: برگشت به انتخاب نوع شرکت (در صورت نیاز)
+        if step == 1:
+            data["step"] = 0
+            send_company_type_menu(update, context)
+            return
+
+    # --------------------------------------
     # بازگشت: تغییر موضوع فعالیت – سهامی خاص
     # مراحل: 1..10 خطی، 11 تعداد سهامداران، 12 حلقه سهامداران، 13 انتخاب الحاق/جایگزین (callback)، 14 موضوع جدید، 15 وکیل
     # --------------------------------------
@@ -2455,6 +2619,12 @@ def button_handler(update: Update, context: CallbackContext):
             user_data[chat_id]["step"] = 1
             context.bot.send_message(chat_id=chat_id, text=get_label("نام شرکت"))
             return
+
+        # شروع: تغییر نام شرکت - سهامی خاص
+        if user_data[chat_id].get("موضوع صورتجلسه") == "تغییر نام شرکت" and query.data == "سهامی خاص":
+            user_data[chat_id]["step"] = 1
+            context.bot.send_message(chat_id=chat_id, text=get_label("نام شرکت"))
+            return
     
         # سایر موضوع‌ها
         user_data[chat_id]["step"] = 1
@@ -2784,6 +2954,41 @@ def send_summary(chat_id, context):
         file_path = generate_word_file(text)
         with open(file_path, 'rb') as f:
             context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه تغییر موضوع فعالیت.docx")
+        os.remove(file_path)
+        return
+
+    # -------------------------------
+    # خروجی: تغییر نام شرکت - سهامی خاص
+    # -------------------------------
+    if موضوع == "تغییر نام شرکت" and نوع_شرکت == "سهامی خاص":
+        text = f"""صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} ({نوع_شرکت})
+    شماره ثبت شرکت :     {data['شماره ثبت']}
+    شناسه ملی :     {data['شناسه ملی']}
+    سرمایه ثبت شده : {data['سرمایه']} ریال
+    
+    صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} ({نوع_شرکت}) ثبت شده به شماره {data['شماره ثبت']} در تاریخ  {data['تاریخ']} ساعت {data['ساعت']} با حضور کلیه سهامداران در محل قانونی شرکت تشکیل و نسبت به تغییر نام شرکت اتخاذ تصمیم شد: 
+    الف: در اجرای ماده 101 لایحه اصلاحی قانون تجارت: 
+    
+    ـ  {data['مدیر عامل']}                                   به سمت رئیس جلسه 
+    ـ  {data['نایب رییس']}                                  به سمت ناظر 1 جلسه 
+    ـ  {data['رییس']}                                        به سمت ناظر 2 جلسه 
+    ـ  {data['منشی']}                                        به سمت منشی جلسه انتخاب شدند
+    
+    ب: پس از شور و بررسی مقرر گردید نام شرکت از {data['نام شرکت']} به {data['نام جدید شرکت']} تغییر یابد در نتیجه ماده مربوطه اساسنامه بشرح مذکور اصلاح می گردد.
+    
+    ج: مجمع به {data['وکیل']} احدی از سهامداران یا وکیل رسمی شرکت وکالت داده می شود که ضمن مراجعه به اداره ثبت شرکت ها نسبت به ثبت صورتجلسه و پرداخت حق الثبت و امضاء ذیل دفاتر ثبت اقدام نماید.
+    
+    امضاء اعضاء هیات رئیسه: 
+    رئیس جلسه :  {data['مدیر عامل']}                                   ناظر1 جلسه : {data['نایب رییس']}                               
+    
+    
+    ناظر2جلسه : {data['رییس']}                                       منشی جلسه: {data['منشی']}
+    """
+    
+        context.bot.send_message(chat_id=chat_id, text=text)
+        file_path = generate_word_file(text)
+        with open(file_path, 'rb') as f:
+            context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه تغییر نام شرکت سهامی خاص.docx")
         os.remove(file_path)
         return
 
