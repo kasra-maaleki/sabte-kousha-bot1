@@ -2213,6 +2213,14 @@ def button_handler(update: Update, context: CallbackContext):
             user_data[chat_id]["step"] = 1
             context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
             return
+        if user_data[chat_id]["موضوع صورتجلسه"] == "نقل و انتقال سهام" and query.data == "مسئولیت محدود":
+            user_data[chat_id]["step"] = 1
+            context.bot.send_message(
+                chat_id=chat_id,
+                text="طبق ماده ۱۰۳ قانون تجارت، نقل و انتقال سهم الشرکه در شرکت با مسئولیت محدود از عقود تشریفاتی است و باید حتما با تنظیم سند رسمی در دفاتر اسناد رسمی انجام شود.\nشما باید ابتدا نسبت به تنظیم {سند صلح} در دفاتر اسناد رسمی اقدام کرده باشید چرا که قرار دادن مشخصات آن در متن صورتجلسه الزامی است."
+            )
+            context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
+            return
 
         # برای سایر موضوعات
         user_data[chat_id]["step"] = 1
