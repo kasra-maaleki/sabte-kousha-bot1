@@ -785,6 +785,236 @@ def handle_message(update: Update, context: CallbackContext):
             context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات قبلاً ثبت شده است. برای شروع مجدد /start را ارسال کنید.")
             return
 
+    # -------------------------------
+    # نقل و انتقال سهم الشرکه - مسئولیت محدود
+    # -------------------------------
+    if موضوع == "نقل و انتقال سهام" and نوع_شرکت == "مسئولیت محدود":
+        if step == 1:
+            data["نام شرکت"] = text
+            data["step"] = 2
+            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید (اعداد فارسی):")
+            return
+
+        if step == 2:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.")
+                return
+            data["شماره ثبت"] = text
+            data["step"] = 3
+            context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید (اعداد فارسی):")
+            return
+
+        if step == 3:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.")
+                return
+            data["شناسه ملی"] = text
+            data["step"] = 4
+            context.bot.send_message(chat_id=chat_id, text="سرمایه ثبت‌شده شرکت (ریال):")
+            return
+
+        if step == 4:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.")
+                return
+            data["سرمایه"] = text
+            data["step"] = 5
+            context.bot.send_message(chat_id=chat_id, text="تاریخ صورتجلسه را وارد کنید (مثلاً: ۱۴۰۴/۰۶/۰۱):")
+            return
+
+        if step == 5:
+            if text.count('/') != 2:
+                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.")
+                return
+            data["تاریخ"] = text
+            data["step"] = 6
+            context.bot.send_message(chat_id=chat_id, text="ساعت جلسه را وارد کنید (اعداد فارسی):")
+            return
+
+        if step == 6:
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.")
+                return
+            data["ساعت"] = text
+            data["step"] = 7
+            context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید:")
+            return
+
+        # شرکا
+        if step == 7:
+            if not text.isdigit():
+                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
+                return
+            count = int(text)
+            data["تعداد شرکا"] = count
+            data["current_partner"] = 1
+            data["step"] = 8
+            context.bot.send_message(chat_id=chat_id, text="نام شریک شماره ۱ را وارد کنید:")
+            return
+
+        if step == 8:
+            i = data["current_partner"]
+            data[f"شریک {i}"] = text
+            data["step"] = 9
+            context.bot.send_message(chat_id=chat_id, text=f"سهم‌الشرکه شریک شماره {i} (ریال، اعداد فارسی):")
+            return
+
+        if step == 9:
+            i = data["current_partner"]
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️سهم‌الشرکه را فقط با اعداد فارسی وارد کنید.")
+                return
+            data[f"سهم الشرکه شریک {i}"] = text
+            if i < data["تعداد شرکا"]:
+                data["current_partner"] = i + 1
+                data["step"] = 8
+                context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {i+1} را وارد کنید:")
+                return
+            else:
+                data["step"] = 10
+                context.bot.send_message(chat_id=chat_id, text="تعداد فروشندگان را وارد کنید:")
+                return
+
+        # فروشندگان
+        if step == 10:
+            if not text.isdigit():
+                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
+                return
+            data["تعداد فروشندگان"] = int(text)
+            data["فروشنده_index"] = 1
+            data["step"] = 11
+            context.bot.send_message(chat_id=chat_id, text="نام فروشنده شماره ۱ را وارد کنید:")
+            return
+
+        if step == 11:
+            i = data["فروشنده_index"]
+            data[f"فروشنده {i} نام"] = text
+            data["step"] = 12
+            context.bot.send_message(chat_id=chat_id, text=f"کد ملی فروشنده {i} را وارد کنید (اعداد فارسی):")
+            return
+
+        if step == 12:
+            i = data["فروشنده_index"]
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی را فقط با اعداد فارسی وارد کنید.")
+                return
+            data[f"فروشنده {i} کد ملی"] = text
+            data["step"] = 13
+            context.bot.send_message(chat_id=chat_id, text=f"کل سهم‌الشرکه فروشنده {i} (ریال):")
+            return
+
+        if step == 13:
+            i = data["فروشنده_index"]
+            data[f"فروشنده {i} سهم کل"] = text
+            data["step"] = 14
+            context.bot.send_message(chat_id=chat_id, text=f"شماره سند صلح فروشنده {i} را وارد کنید:")
+            return
+
+        if step == 14:
+            i = data["فروشنده_index"]
+            data[f"فروشنده {i} سند صلح"] = text
+            data["step"] = 15
+            context.bot.send_message(chat_id=chat_id, text=f"تاریخ سند صلح فروشنده {i} را وارد کنید:")
+            return
+
+        if step == 15:
+            i = data["فروشنده_index"]
+            data[f"فروشنده {i} تاریخ سند"] = text
+            data["step"] = 16
+            context.bot.send_message(chat_id=chat_id, text=f"شماره دفترخانه فروشنده {i} را وارد کنید:")
+            return
+
+        if step == 16:
+            i = data["فروشنده_index"]
+            data[f"فروشنده {i} دفترخانه"] = text
+            data["step"] = 17
+            context.bot.send_message(chat_id=chat_id, text=f"تعداد خریداران فروشنده {i} را وارد کنید:")
+            return
+
+        if step == 17:
+            if not text.isdigit():
+                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
+                return
+            i = data["فروشنده_index"]
+            data[f"تعداد خریداران {i}"] = int(text)
+            data[f"خریدار_index_{i}"] = 1
+            data["step"] = 18
+            context.bot.send_message(chat_id=chat_id, text=f"نام خریدار ۱ از فروشنده {i} را وارد کنید:")
+            return
+
+        if step == 18:
+            i = data["فروشنده_index"]
+            k = data[f"خریدار_index_{i}"]
+            data[f"خریدار {i}-{k} نام"] = text
+            data["step"] = 19
+            context.bot.send_message(chat_id=chat_id, text=f"نام پدر خریدار {k} از فروشنده {i}:")
+            return
+
+        if step == 19:
+            i = data["فروشنده_index"]
+            k = data[f"خریدار_index_{i}"]
+            data[f"خریدار {i}-{k} پدر"] = text
+            data["step"] = 20
+            context.bot.send_message(chat_id=chat_id, text=f"تاریخ تولد خریدار {k} از فروشنده {i}:")
+            return
+
+        if step == 20:
+            i = data["فروشنده_index"]
+            k = data[f"خریدار_index_{i}"]
+            data[f"خریدار {i}-{k} تولد"] = text
+            data["step"] = 21
+            context.bot.send_message(chat_id=chat_id, text=f"کد ملی خریدار {k} از فروشنده {i} (اعداد فارسی):")
+            return
+
+        if step == 21:
+            i = data["فروشنده_index"]
+            k = data[f"خریدار_index_{i}"]
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی را فقط با اعداد فارسی وارد کنید.")
+                return
+            data[f"خریدار {i}-{k} کد ملی"] = text
+            data["step"] = 22
+            context.bot.send_message(chat_id=chat_id, text=f"آدرس خریدار {k} از فروشنده {i}:")
+            return
+
+        if step == 22:
+            i = data["فروشنده_index"]
+            k = data[f"خریدار_index_{i}"]
+            data[f"خریدار {i}-{k} آدرس"] = text
+            data["step"] = 23
+            context.bot.send_message(chat_id=chat_id, text=f"میزان سهم‌الشرکه منتقل‌شده به خریدار {k} از فروشنده {i} (ریال):")
+            return
+
+        if step == 23:
+            i = data["فروشنده_index"]
+            k = data[f"خریدار_index_{i}"]
+            data[f"خریدار {i}-{k} سهم منتقل"] = text
+            if k < data[f"تعداد خریداران {i}"]:
+                data[f"خریدار_index_{i}"] = k + 1
+                data["step"] = 18
+                context.bot.send_message(chat_id=chat_id, text=f"نام خریدار {k+1} از فروشنده {i} را وارد کنید:")
+                return
+            else:
+                if i < data["تعداد فروشندگان"]:
+                    data["فروشنده_index"] = i + 1
+                    data["step"] = 11
+                    context.bot.send_message(chat_id=chat_id, text=f"نام فروشنده شماره {i+1} را وارد کنید:")
+                    return
+                else:
+                    data["step"] = 24
+                    context.bot.send_message(chat_id=chat_id, text="نام وکیل (ثبت‌کننده صورتجلسه) را وارد کنید:")
+                    return
+
+        if step == 24:
+            data["وکیل"] = text
+            send_summary(chat_id, context)
+            data["step"] = 25
+            return
+
+    # -------------------------------
+    # نقل و انتقال سهام - سهامی خاص
+    # -------------------------------
+    
     if موضوع == "نقل و انتقال سهام" and نوع_شرکت == "سهامی خاص":
         if step == 1:
             data["نام شرکت"] = text
@@ -1650,6 +1880,202 @@ def handle_back(update: Update, context: CallbackContext):
             return
 
     # --------------------------------------
+    # بازگشت: نقل و انتقال سهم‌الشرکه - مسئولیت محدود
+    # مراحل:
+    # 1..6 خطی پایه، 7=تعداد شرکا، 8/9 حلقه شرکا،
+    # 10=تعداد فروشندگان، 11..16 خطی فروشنده،
+    # 17=تعداد خریداران فروشنده i، 18..23 حلقه خریدار،
+    # 24=وکیل
+    # --------------------------------------
+    if موضوع == "نقل و انتقال سهام" and نوع_شرکت == "مسئولیت محدود":
+        # خطی پایه: 2..6 ← یک قدم عقب
+        if 2 <= step <= 6:
+            prev_step = step - 1
+            order = ["نام شرکت","شماره ثبت","شناسه ملی","سرمایه","تاریخ","ساعت"]
+            key = order[prev_step - 1] if prev_step - 1 < len(order) else None
+            if prev_step == 1:
+                data.pop("نام شرکت", None)
+                data["step"] = 1
+                context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
+                return
+            if key:
+                data.pop(key, None)
+                data["step"] = prev_step
+                # از برچسب‌های آماده استفاده می‌کنیم اگر موجود باشد
+                lbl = get_label(key) if key in order else f"{key} را وارد کنید:"
+                context.bot.send_message(chat_id=chat_id, text=lbl)
+                return
+
+        # 7 ← برگشت به 6 (ساعت)
+        if step == 7:
+            data.pop("تعداد شرکا", None)
+            data["step"] = 6
+            context.bot.send_message(chat_id=chat_id, text=get_label("ساعت"))
+            return
+
+        # حلقه شرکا (8/9)
+        if step in (8, 9):
+            i = data.get("current_partner", 1)
+            # اگر منتظر «نام شریک i» هستیم
+            if step == 8:
+                if i == 1:
+                    data.pop("تعداد شرکا", None)
+                    data["step"] = 7
+                    context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید:")
+                    return
+                # برگرد به «سهم‌الشرکه شریک قبلی»
+                prev_i = i - 1
+                data["current_partner"] = prev_i
+                data.pop(f"سهم الشرکه شریک {prev_i}", None)
+                data["step"] = 9
+                context.bot.send_message(chat_id=chat_id, text=f"سهم‌الشرکه شریک شماره {prev_i} را به ریال وارد کنید (اعداد فارسی):")
+                return
+            # اگر منتظر «سهم‌الشرکه شریک i» هستیم
+            if step == 9:
+                data.pop(f"شریک {i}", None)
+                data["step"] = 8
+                context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {i} را وارد کنید:")
+                return
+
+        # 10 ← برگرد به «سهم‌الشرکه شریک آخر»
+        if step == 10:
+            last = data.get("تعداد شرکا", 1)
+            data["current_partner"] = last
+            data.pop(f"سهم الشرکه شریک {last}", None)
+            data["step"] = 9
+            context.bot.send_message(chat_id=chat_id, text=f"سهم‌الشرکه شریک شماره {last} را به ریال وارد کنید (اعداد فارسی):")
+            return
+
+        # فروشنده (11..16) و تعداد خریداران (17)
+        if step == 11:
+            i = data.get("فروشنده_index", 1)
+            if i == 1:
+                data.pop("تعداد فروشندگان", None)
+                data["step"] = 10
+                context.bot.send_message(chat_id=chat_id, text="تعداد فروشندگان را وارد کنید:")
+                return
+            # برگشت به آخرین فیلد خریدارِ فروشنده قبلی (سهم منتقل)
+            prev_i = i - 1
+            total_k = data.get(f"تعداد خریداران {prev_i}", 1)
+            data["فروشنده_index"] = prev_i
+            data[f"خریدار_index_{prev_i}"] = total_k
+            data.pop(f"خریدار {prev_i}-{total_k} سهم منتقل", None)
+            data["step"] = 23
+            context.bot.send_message(chat_id=chat_id, text=f"میزان سهم‌الشرکه منتقل‌شده به خریدار {total_k} از فروشنده {prev_i} (ریال):")
+            return
+
+        if step == 12:
+            i = data.get("فروشنده_index", 1)
+            data.pop(f"فروشنده {i} نام", None)
+            data["step"] = 11
+            context.bot.send_message(chat_id=chat_id, text=f"نام فروشنده شماره {i} را وارد کنید:")
+            return
+
+        if step == 13:
+            i = data.get("فروشنده_index", 1)
+            data.pop(f"فروشنده {i} کد ملی", None)
+            data["step"] = 12
+            context.bot.send_message(chat_id=chat_id, text=f"کد ملی فروشنده {i} را وارد کنید (اعداد فارسی):")
+            return
+
+        if step == 14:
+            i = data.get("فروشنده_index", 1)
+            data.pop(f"فروشنده {i} سهم کل", None)
+            data["step"] = 13
+            context.bot.send_message(chat_id=chat_id, text=f"کل سهم‌الشرکه فروشنده {i} (ریال):")
+            return
+
+        if step == 15:
+            i = data.get("فروشنده_index", 1)
+            data.pop(f"فروشنده {i} سند صلح", None)
+            data["step"] = 14
+            context.bot.send_message(chat_id=chat_id, text=f"شماره سند صلح فروشنده {i} را وارد کنید:")
+            return
+
+        if step == 16:
+            i = data.get("فروشنده_index", 1)
+            data.pop(f"فروشنده {i} تاریخ سند", None)
+            data["step"] = 15
+            context.bot.send_message(chat_id=chat_id, text=f"تاریخ سند صلح فروشنده {i} را وارد کنید:")
+            return
+
+        if step == 17:
+            i = data.get("فروشنده_index", 1)
+            data.pop(f"فروشنده {i} دفترخانه", None)
+            data["step"] = 16
+            context.bot.send_message(chat_id=chat_id, text=f"شماره دفترخانه فروشنده {i} را وارد کنید:")
+            return
+
+        # حلقه خریداران (18..23)
+        if step == 18:
+            i = data.get("فروشنده_index", 1)
+            k = data.get(f"خریدار_index_{i}", 1)
+            if k == 1:
+                data.pop(f"تعداد خریداران {i}", None)
+                data["step"] = 17
+                context.bot.send_message(chat_id=chat_id, text=f"تعداد خریداران فروشنده {i} را وارد کنید:")
+                return
+            # برگرد به «سهم منتقلِ» خریدار قبلی
+            prev_k = k - 1
+            data[f"خریدار_index_{i}"] = prev_k
+            data.pop(f"خریدار {i}-{prev_k} سهم منتقل", None)
+            data["step"] = 23
+            context.bot.send_message(chat_id=chat_id, text=f"میزان سهم‌الشرکه منتقل‌شده به خریدار {prev_k} از فروشنده {i} (ریال):")
+            return
+
+        if step == 19:
+            i = data.get("فروشنده_index", 1)
+            k = data.get(f"خریدار_index_{i}", 1)
+            data.pop(f"خریدار {i}-{k} نام", None)
+            data["step"] = 18
+            context.bot.send_message(chat_id=chat_id, text=f"نام خریدار {k} از فروشنده {i} را وارد کنید:")
+            return
+
+        if step == 20:
+            i = data.get("فروشنده_index", 1)
+            k = data.get(f"خریدار_index_{i}", 1)
+            data.pop(f"خریدار {i}-{k} پدر", None)
+            data["step"] = 19
+            context.bot.send_message(chat_id=chat_id, text=f"نام پدر خریدار {k} از فروشنده {i}:")
+            return
+
+        if step == 21:
+            i = data.get("فروشنده_index", 1)
+            k = data.get(f"خریدار_index_{i}", 1)
+            data.pop(f"خریدار {i}-{k} تولد", None)
+            data["step"] = 20
+            context.bot.send_message(chat_id=chat_id, text=f"تاریخ تولد خریدار {k} از فروشنده {i}:")
+            return
+
+        if step == 22:
+            i = data.get("فروشنده_index", 1)
+            k = data.get(f"خریدار_index_{i}", 1)
+            data.pop(f"خریدار {i}-{k} کد ملی", None)
+            data["step"] = 21
+            context.bot.send_message(chat_id=chat_id, text=f"کد ملی خریدار {k} از فروشنده {i} (اعداد فارسی):")
+            return
+
+        if step == 23:
+            i = data.get("فروشنده_index", 1)
+            k = data.get(f"خریدار_index_{i}", 1)
+            data.pop(f"خریدار {i}-{k} آدرس", None)
+            data["step"] = 22
+            context.bot.send_message(chat_id=chat_id, text=f"آدرس خریدار {k} از فروشنده {i}:")
+            return
+
+        # 24 ← برگرد به «سهم منتقلِ» آخرین خریدارِ آخرین فروشنده
+        if step == 24:
+            i = data.get("فروشنده_index", data.get("تعداد فروشندگان", 1))
+            if i > data.get("تعداد فروشندگان", 1):
+                i = data.get("تعداد فروشندگان", 1)
+            total_k = data.get(f"تعداد خریداران {i}", 1)
+            data[f"خریدار_index_{i}"] = total_k
+            data.pop(f"خریدار {i}-{total_k} سهم منتقل", None)
+            data["step"] = 23
+            context.bot.send_message(chat_id=chat_id, text=f"میزان سهم‌الشرکه منتقل‌شده به خریدار {total_k} از فروشنده {i} (ریال):")
+            return
+
+    # --------------------------------------
     # بازگشت: انحلال شرکت - سهامی خاص
     # --------------------------------------
     if موضوع == "انحلال شرکت" and نوع_شرکت == "سهامی خاص":
@@ -1805,6 +2231,19 @@ def button_handler(update: Update, context: CallbackContext):
 
         context.bot.send_message(chat_id=chat_id, text="موضوع جدید فعالیت شرکت را وارد کنید:")
         return
+
+    if user_data[chat_id].get("step") == 0:
+        user_data[chat_id]["نوع شرکت"] = query.data
+
+        if user_data[chat_id]["موضوع صورتجلسه"] == "نقل و انتقال سهام" and query.data == "مسئولیت محدود":
+            user_data[chat_id]["step"] = 1
+            context.bot.send_message(
+                chat_id=chat_id,
+                text="طبق ماده ۱۰۳ قانون تجارت، نقل و انتقال سهم الشرکه در شرکت با مسئولیت محدود از عقود تشریفاتی است و باید حتما با تنظیم سند رسمی در دفاتر اسناد رسمی انجام شود.\nشما باید ابتدا نسبت به تنظیم {سند صلح} در دفاتر اسناد رسمی اقدام کرده باشید چرا که قرار دادن مشخصات آن در متن صورتجلسه الزامی است."
+            )
+            context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
+            return
+
 
 def send_summary(chat_id, context):
     data = user_data[chat_id]
@@ -2153,6 +2592,98 @@ def send_summary(chat_id, context):
         file_path = generate_word_file(text)
         with open(file_path, 'rb') as f:
             context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه انحلال مسئولیت محدود.docx")
+        os.remove(file_path)
+        return
+
+    # -------------------------------
+    # خروجی: نقل و انتقال سهم الشرکه - مسئولیت محدود
+    # -------------------------------
+    if موضوع == "نقل و انتقال سهام" and نوع_شرکت == "مسئولیت محدود":
+        # جدول شرکا (بالای متن)
+        partners_lines = ""
+        count = data.get("تعداد شرکا", 0)
+        for i in range(1, count + 1):
+            name = data.get(f"شریک {i}", "")
+            share = data.get(f"سهم الشرکه شریک {i}", "")
+            partners_lines += f"{name}                                              {share} ریال\n"
+
+        text = f"""صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} ({نوع_شرکت})
+شماره ثبت شرکت :     {data['شماره ثبت']}
+شناسه ملی :      {data['شناسه ملی']}
+سرمایه ثبت شده : {data['سرمایه']} ریال
+
+صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} ({نوع_شرکت}) ثبت شده به شماره {data['شماره ثبت']} در تاریخ  {data['تاریخ']} ساعت {data['ساعت']} با حضور کلیه شرکا در محل قانونی شرکت تشکیل و نسبت به نقل و انتقال سهم الشرکه بشرح ذیل اتخاذ تصمیم شد:
+
+اسامی شرکا                                                        میزان سهم الشرکه
+{partners_lines}
+"""
+
+        # پاراگراف‌های واگذاری برای هر فروشنده
+        for i in range(1, data.get("تعداد فروشندگان", 0) + 1):
+            seller_name = data.get(f"فروشنده {i} نام", "")
+            seller_nid = data.get(f"فروشنده {i} کد ملی", "")
+            seller_total = data.get(f"فروشنده {i} سهم کل", "")
+            senad_no = data.get(f"فروشنده {i} سند صلح", "")
+            senad_date = data.get(f"فروشنده {i} تاریخ سند", "")
+            daftar_no = data.get(f"فروشنده {i} دفترخانه", "")
+
+            sentence = (
+                f"پس از مذاکره مقرر شد که {seller_name} به شماره ملی {seller_nid} "
+                f"که دارای {seller_total} ریال سهم الشرکه می باشد "
+                f"با رعایت مفاد ماده 103 قانون تجارت و بموجب سند صلح به شماره {senad_no} "
+                f"مورخ {senad_date} صادره از دفتراسناد رسمی {daftar_no} "
+            )
+
+            # خریداران مرتبط با این فروشنده
+            total_transferred = 0
+            buyers_cnt = data.get(f"تعداد خریداران {i}", 0)
+            first = True
+            for k in range(1, buyers_cnt + 1):
+                b_name = data.get(f"خریدار {i}-{k} نام", "")
+                b_father = data.get(f"خریدار {i}-{k} پدر", "")
+                b_birth = data.get(f"خریدار {i}-{k} تولد", "")
+                b_nid = data.get(f"خریدار {i}-{k} کد ملی", "")
+                b_addr = data.get(f"خریدار {i}-{k} آدرس", "")
+                b_share = data.get(f"خریدار {i}-{k} سهم منتقل", "")
+
+                # جمع کل منتقل‌شده برای تعیین خروج/عدم‌خروج فروشنده
+                try:
+                    total_transferred += int(fa_to_en_number(b_share))
+                except Exception:
+                    pass
+
+                prefix = "معادل" if first else "و همچنین معادل"
+                sentence += (
+                    f"{prefix} {b_share} ریال سهم الشرکه خود را به {b_name} "
+                    f"فرزند {b_father} متولد {b_birth} "
+                    f"به شماره ملی {b_nid} آدرس محل سکونت {b_addr} منتقل "
+                )
+                first = False
+
+            # اگر به اندازه کل سهم‌الشرکه‌اش منتقل کرده باشد → خروج از شرکت
+            try:
+                seller_total_int = int(fa_to_en_number(seller_total))
+            except Exception:
+                seller_total_int = None
+
+            if seller_total_int is not None and seller_total_int == total_transferred:
+                sentence += "و از شرکت خارج  شد و دیگر هیچ گونه حق و سمتی در شرکت ندارد."
+
+            text += sentence + "\n"
+
+        text += "\nاین نقل و انتقال سهم الشرکه مورد موافقت کلیه شرکاء با رعایت مفاد ماده 102 قانون تجارت قرار گرفت.\n\n"
+        text += f"به {data['وکیل']} احدی از شرکاء یا وکیل رسمی شرکت وکالت داده شد که ضمن مراجعه به اداره ثبت شرکتها نسبت به ثبت صورتجلسه و پرداخت حق الثبت و امضاء ذیل دفتر ثبت اقدام نماید. \n\n"
+
+        # جدول امضاء پایانی
+        text += "    نام شرکاء                                        میزان سهم الشرکه                                     امضاء\n"
+        for i in range(1, count + 1):
+            text += f" {data.get(f'شریک {i}', '')}                                   {data.get(f'سهم الشرکه شریک {i}', '')} ریال\n"
+
+        # ارسال متن و فایل Word
+        context.bot.send_message(chat_id=chat_id, text=text)
+        file_path = generate_word_file(text)
+        with open(file_path, 'rb') as f:
+            context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه نقل و انتقال سهم‌الشرکه مسئولیت محدود.docx")
         os.remove(file_path)
         return
 
