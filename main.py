@@ -905,9 +905,12 @@ def handle_message(update: Update, context: CallbackContext):
 
         if step == 13:
             i = data["فروشنده_index"]
+            if not is_persian_number(text):
+                context.bot.send_message(chat_id=chat_id, text="❗️مبلغ را فقط با اعداد فارسی وارد کنید.")
+                return
             data[f"فروشنده {i} سهم کل"] = text
             data["step"] = 14
-            context.bot.send_message(chat_id=chat_id, text=f"شماره سند صلح فروشنده {i} را وارد کنید:")
+            context.bot.send_message(chat_id=chat_id, text=get_label("شماره سند صلح", i=i))
             return
 
         if step == 14:
@@ -1889,6 +1892,12 @@ def handle_back(update: Update, context: CallbackContext):
     # --------------------------------------
     if موضوع == "نقل و انتقال سهام" and نوع_شرکت == "مسئولیت محدود":
         # خطی پایه: 2..6 ← یک قدم عقب
+        if step == 1:
+            # برگشت به انتخاب نوع شرکت برای موضوع نقل و انتقال
+            data["step"] = 0
+            send_company_type_menu(update, context)  # همان تابعی که در پروژه‌ات داری
+            return
+            
         if 2 <= step <= 6:
             prev_step = step - 1
             order = ["نام شرکت","شماره ثبت","شناسه ملی","سرمایه","تاریخ","ساعت"]
@@ -2668,7 +2677,9 @@ def send_summary(chat_id, context):
 
             if seller_total_int is not None and seller_total_int == total_transferred:
                 sentence += "و از شرکت خارج  شد و دیگر هیچ گونه حق و سمتی در شرکت ندارد."
-
+            else:
+                sentence += "نمود."
+                
             text += sentence + "\n"
 
         text += "\nاین نقل و انتقال سهم الشرکه مورد موافقت کلیه شرکاء با رعایت مفاد ماده 102 قانون تجارت قرار گرفت.\n\n"
