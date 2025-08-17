@@ -1685,7 +1685,7 @@ def handle_back(update: Update, context: CallbackContext):
         context.user_data["help_waiting"] = False
         resend_current_question(update, context)
         return
-chat_id = update.message.chat_id
+    chat_id = update.message.chat_id
     data = user_data.setdefault(chat_id, {"step": 0})
     step = data.get("step", 0)
     موضوع = data.get("موضوع صورتجلسه")
