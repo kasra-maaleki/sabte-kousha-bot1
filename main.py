@@ -38,6 +38,10 @@ fields = [
 
 persian_number_fields = ["شماره ثبت", "شناسه ملی", "سرمایه", "کد پستی"]
 
+def send_q(chat_id, context, text):
+    user_data.setdefault(chat_id, {})["last_prompt"] = text
+    context.bot.send_message(chat_id=chat_id, text=text, reply_markup=main_keyboard())
+
 def is_persian_number(text):
     return all('۰' <= ch <= '۹' or ch.isspace() for ch in text)
 
@@ -85,10 +89,13 @@ def ask_groq_legal(q: str) -> str:
     return _limit_words(r.choices[0].message.content, 50)
 
 def on_help_button(update, context):
-    # مرحلهٔ جاری را برای بازپرسیدن نگه می‌داریم
-    context.user_data["resume_step_after_help"] = context.user_data.get("step", 0)
-    context.user_data["help_waiting"] = True
-    update.message.reply_text("سؤال‌ت را کوتاه بپرس (فقط ثبت شرکت/تغییرات/قانون تجارت).", reply_markup=back_keyboard())
+    chat_id = update.effective_chat.id
+    data = user_data.setdefault(chat_id, {})
+    data["resume_step_after_help"] = data.get("step", 0)   # در user_data سراسری
+    context.user_data["help_waiting"] = True               # فلگ موقتی
+    context.bot.send_message(chat_id=chat_id,
+        text="سؤال‌ت را کوتاه بپرس (فقط ثبت شرکت/تغییرات/قانون تجارت).",
+        reply_markup=main_keyboard())  # نه back_keyboard
 
 def generate_word_file(text: str, filepath: str = None):
     doc = Document()
@@ -237,34 +244,22 @@ def handle_text(update, context):
 
 def handle_message(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
+    text = update.message.text.strip()
+    user_data.setdefault(chat_id, {"step": 0})
 
-    # --- Intercept help button ---
-    if text == HELP_BUTTON_TEXT:
-        data["resume_step_after_help"] = data.get("step", 0)
-        context.user_data["help_waiting"] = True
-        context.bot.send_message(chat_id=chat_id, text="سؤال‌ت را کوتاه بپرس (فقط ثبت شرکت/تغییرات/قانون تجارت).", reply_markup=main_keyboard())
-        return
-    
-    # --- If waiting for help question, answer via Groq and then resend current step question ---
+     # --- در حالت کمک هستیم؟ ---
     if context.user_data.get("help_waiting"):
         context.user_data["help_waiting"] = False
-        ans = ask_groq_legal(text)
-        context.bot.send_message(chat_id=chat_id, text=ans, reply_markup=main_keyboard())
-        # resend current step question
         try:
-            if "get_label" in globals():
-                label = get_label(data.get("step", 0))
-                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
-            else:
-                # fallback to last_prompt
-                lp = context.user_data.get("last_prompt") or data.get("last_prompt")
-                if lp:
-                    context.bot.send_message(chat_id=chat_id, text=lp, reply_markup=main_keyboard())
+            ans = ask_groq_legal(text)
+            context.bot.send_message(chat_id=chat_id, text=ans, reply_markup=main_keyboard())
         except Exception:
-            pass
+            context.bot.send_message(chat_id=chat_id, text="❌ خطا در دریافت پاسخ. کمی بعد دوباره امتحان کن.", reply_markup=main_keyboard())
+        # همان سؤال قبلی را دوباره بفرست
+        prompt = data.get("last_prompt")
+        if prompt:
+            context.bot.send_message(chat_id=chat_id, text=prompt, reply_markup=main_keyboard())
         return
-        text = update.message.text.strip()
-        user_data.setdefault(chat_id, {"step": 0})
 
     # اگر کاربر دکمه بازگشت زد
     if text == BACK_BTN:
@@ -1680,11 +1675,6 @@ def handle_message(update: Update, context: CallbackContext):
     
 
 def handle_back(update: Update, context: CallbackContext):
-        # Cancel help mode (if active) before moving steps back
-    if context.user_data.get("help_waiting"):
-        context.user_data["help_waiting"] = False
-        resend_current_question(update, context)
-        return
     chat_id = update.message.chat_id
     data = user_data.setdefault(chat_id, {"step": 0})
     step = data.get("step", 0)
@@ -3341,11 +3331,11 @@ def webhook():
 updater = Updater(token=TOKEN, use_context=True)
 dispatcher = updater.dispatcher
 
-dispatcher.add_handler(CommandHandler('start', start))
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-dispatcher.add_handler(CallbackQueryHandler(button_handler))
-dispatcher.add_handler(MessageHandler(Filters.regex(f"^{HELP_BUTTON_TEXT}$"), on_help_button))
-# (در v20: از filters.Regex استفاده کن)
+dispatcher.add_handler(MessageHandler(Filters.regex(r"^❓ سوال دارم$"), on_help_button), group=0)
+dispatcher.add_handler(MessageHandler(Filters.regex(f"^{BACK_BTN}$"), handle_back), group=0)
+dispatcher.add_handler(CallbackQueryHandler(button_handler), group=0)
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message), group=1)
+
 
 
 if __name__ == '__main__':
