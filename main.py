@@ -1,4 +1,5 @@
 import telegram
+import logging
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram import ReplyKeyboardMarkup, KeyboardButton
@@ -12,7 +13,10 @@ from openai import OpenAI
 import os
 import uuid
 
-TOKEN = "7483081974:AAGRXi-NxDAgwYF-xpdhqsQmaGbw8-DipXY"
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
+
+TOKEN = os.getenv("TELEGRAM_TOKEN", "7483081974:AAGRXi-NxDAgwYF-xpdhqsQmaGbw8-DipXY")
 bot = telegram.Bot(token=TOKEN)
 
 app = Flask(__name__)
@@ -3322,14 +3326,28 @@ def send_summary(chat_id, context):
         # اگر هیچ‌کدام از حالت‌های بالا نبود:
         context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات با موفقیت دریافت شد.\nدر حال حاضر صورتجلسه‌ای برای این ترکیب تعریف نشده است.")
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    update = telegram.Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
-    return 'ok'
+
 
 updater = Updater(token=TOKEN, use_context=True)
 dispatcher = updater.dispatcher
+
+@app.route("/", methods=["GET"])
+def health():
+    return "ok", 200
+
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        upd = Update.de_json(data, bot)
+        # پردازش را انجام بده؛ اگر کدت طولانی است، تلاش کن زیر 10 ثانیه بماند
+        dispatcher.process_update(upd)
+        return "ok", 200
+    except Exception as e:
+        log.exception("Webhook error")
+        # همیشه 200 بده تا تلگرام 502 لاگ نکند
+        return "ok", 200
+
 
 dispatcher.add_handler(MessageHandler(Filters.regex(r"^❓ سوال دارم$"), on_help_button), group=0)
 dispatcher.add_handler(MessageHandler(Filters.regex(f"^{BACK_BTN}$"), handle_back), group=0)
