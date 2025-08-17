@@ -23,7 +23,6 @@ user_data = {}
 # متن دکمه بازگشت
 BACK_BTN = "⬅️ بازگشت"
 
-GROQ_MODEL_FAST = "llama-3.1-8b-instant"       # سریع و کم‌هزینه
 GROQ_MODEL_QUALITY = "llama-3.3-70b-versatile" # کیفیت بالاتر
 groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
@@ -40,7 +39,7 @@ def ask_groq(user_text: str, system_prompt: str = None, model: str = GROQ_MODEL_
         )
 
     resp = groq_client.chat.completions.create(
-        model=model,
+        model=GROQ_MODEL,  # همیشه 70B
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_text},
@@ -208,24 +207,15 @@ def cmd_ai(update, context):
     query = args_text[1].strip() if len(args_text) > 1 else ""
 
     if not query:
-        update.message.reply_text("سؤال خود را بعد از دستور /ai بنویسید.\nمثال: /ai مراحل افزایش سرمایه در سهامی خاص چیست؟")
+        update.message.reply_text("سؤال را بعد از /ai بنویسید.")
         return
 
-    # نشان دادن typing
-    context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
-
     try:
-        # برای پاسخ سریع:
-        answer = ask_groq(query, model=GROQ_MODEL_FAST, max_tokens=900)
-        # اگر خواستی کیفیت بالاتر:
-        # answer = ask_groq(query, model=GROQ_MODEL_QUALITY, max_tokens=900)
-
-        # تلگرام محدودیت 4096 کاراکتر دارد؛ اگر طولانی شد، تکه‌تکه بفرست:
-        for chunk_start in range(0, len(answer), 3500):
-            update.message.reply_text(answer[chunk_start: chunk_start + 3500])
+        answer = ask_groq(query, max_tokens=900)  # بدون انتخاب مدل
+        for i in range(0, len(answer), 3500):
+            update.message.reply_text(answer[i:i+3500])
     except Exception as e:
-        update.message.reply_text("❌ خطا در دریافت پاسخ از Groq. لطفاً دوباره تلاش کنید.")
-        # در لاگ سرور ثبت کن:
+        update.message.reply_text("❌ خطا در دریافت پاسخ از Groq.")
         print("GROQ ERROR:", e)
 
 
