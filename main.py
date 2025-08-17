@@ -8,6 +8,7 @@ from docx import Document
 from docx.shared import Pt
 from docx.oxml.ns import qn
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+from openai import OpenAI
 import os
 import uuid
 
@@ -20,10 +21,15 @@ user_data = {}
 
 # متن دکمه بازگشت
 BACK_BTN = "⬅️ بازگشت"
+HELP_BUTTON_TEXT = "❓ سوال دارم"
 
-# تابع ساخت کیبورد اصلی که فقط دکمه بازگشت داره
-def main_keyboard():
-    return ReplyKeyboardMarkup([[KeyboardButton(BACK_BTN)]], resize_keyboard=True)
+# تابع ساخت کیبورد اصلی
+def main_keyboard(extra_rows=None):
+    rows = []
+    if extra_rows:
+        rows += extra_rows  # هر ردیف اضافی که بالای ردیف ثابت می‌خوای
+    rows.append([KeyboardButton(BACK_BTN), KeyboardButton(HELP_BUTTON_TEXT)])  # ردیف ثابت پایین
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True, one_time_keyboard=False)
     
 fields = [
     "نوع شرکت", "نام شرکت", "شماره ثبت", "شناسه ملی", "سرمایه", "تاریخ", "ساعت",
@@ -54,6 +60,35 @@ def has_min_digits_fa(s: str, n: int = 10) -> bool:
     en = fa_to_en_number(s or "")
     digits = "".join(ch for ch in en if ch.isdigit())
     return len(digits) >= n
+
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.groq.com/openai/v1")
+LLM_MODEL    = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+
+llm = OpenAI(base_url=LLM_BASE_URL, api_key=GROQ_API_KEY)
+
+def _limit_words(txt, n=50):
+    w = (txt or "").split()
+    return " ".join(w[:n])
+
+def ask_groq_legal(q: str) -> str:
+    sys = (
+        "تو دستیار فارسی در حوزه ثبت شرکت، تغییرات شرکت‌ها و قانون تجارت ایران هستی. "
+        "اگر سؤال خارج از این حوزه بود صرفاً بنویس: «خارج از حوزه پاسخگویی است.» "
+        "کوتاه و صریح، حداکثر ۵۰ کلمه پاسخ بده."
+    )
+    r = llm.chat.completions.create(
+        model=LLM_MODEL,
+        messages=[{"role":"system","content":sys},{"role":"user","content":q}],
+        temperature=0.3, max_tokens=180,
+    )
+    return _limit_words(r.choices[0].message.content, 50)
+
+def on_help_button(update, context):
+    # مرحلهٔ جاری را برای بازپرسیدن نگه می‌داریم
+    context.user_data["resume_step_after_help"] = context.user_data.get("step", 0)
+    context.user_data["help_waiting"] = True
+    update.message.reply_text("سؤال‌ت را کوتاه بپرس (فقط ثبت شرکت/تغییرات/قانون تجارت).", reply_markup=back_keyboard())
 
 def generate_word_file(text: str, filepath: str = None):
     doc = Document()
@@ -171,6 +206,34 @@ def get_label(field, **kwargs):
         return msg.format(**kwargs)  # برای کلیدهایی که جای‌نگهدار دارند مثل {سند}، {i}، {k}
     except Exception:
         return msg
+
+def resend_current_question(update, context):
+    step = context.user_data.get("resume_step_after_help", context.user_data.get("step", 0))
+    context.user_data["step"] = step
+    try:
+        # اگر در کد مرجع تابع get_label(step) داری:
+        label = get_label(step)
+        update.effective_chat.send_message(label, reply_markup=back_keyboard())
+    except Exception:
+        # در غیر این‌صورت، تابع مخصوص نمایش سوال همان مرحله‌ات را صدا بزن
+        # مثال فرضی:
+        # send_question_for_step(update, context, step)
+        pass
+
+def handle_text(update, context):
+    text = (update.message.text or "").strip()
+
+    # --- حالت کمک فعال است؟ ---
+    if context.user_data.get("help_waiting"):
+        context.user_data["help_waiting"] = False
+        try:
+            ans = ask_groq_legal(text)
+            update.message.reply_text(ans, reply_markup=back_keyboard())
+        except Exception:
+            update.message.reply_text("❌ خطا در دریافت پاسخ از سرویس. کمی بعد دوباره امتحان کن.", reply_markup=back_keyboard())
+        # بعد از جواب، همان سؤال مرحلهٔ قبلی فوراً تکرار شود
+        resend_current_question(update, context)
+        return
 
 def handle_message(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
@@ -3250,6 +3313,9 @@ dispatcher = updater.dispatcher
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 dispatcher.add_handler(CallbackQueryHandler(button_handler))
+dispatcher.add_handler(MessageHandler(Filters.regex(f"^{HELP_BUTTON_TEXT}$"), on_help_button))
+# (در v20: از filters.Regex استفاده کن)
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
