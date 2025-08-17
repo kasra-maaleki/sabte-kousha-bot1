@@ -26,16 +26,11 @@ BACK_BTN = "⬅️ بازگشت"
 GROQ_MODEL_QUALITY = "llama-3.3-70b-versatile" # کیفیت بالاتر
 groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
-def ask_groq(user_text: str, system_prompt: str = None, model: str = GROQ_MODEL_FAST, max_tokens: int = 1024) -> str:
-    """
-    تماس ساده با Groq Chat Completions (OpenAI-compatible).
-    برای پاسخ‌های سریع از مدل 8B و برای کیفیت بالاتر از 70B استفاده کن.
-    """
+def ask_groq(user_text: str, system_prompt: str = None, max_tokens: int = 1024) -> str:
     if system_prompt is None:
         system_prompt = (
             "You are an assistant answering in Persian (Farsi). "
-            "متخصص قانون تجارت ایران و ثبت شرکت‌ها هستی. جواب‌ها کوتاه، روشن و کاربردی باشند. "
-            "در صورت نیاز مواد قانونی یا رویه‌های اداره ثبت شرکت‌ها را توضیح بده و اگر مطمئن نیستی، صادقانه بگو."
+            "متخصص قانون تجارت ایران و ثبت شرکت‌ها هستی. جواب‌ها کوتاه و کاربردی باشند."
         )
 
     resp = groq_client.chat.completions.create(
