@@ -238,33 +238,33 @@ def handle_text(update, context):
 def handle_message(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
 
-# --- Intercept help button ---
-if text == HELP_BUTTON_TEXT:
-    data["resume_step_after_help"] = data.get("step", 0)
-    context.user_data["help_waiting"] = True
-    context.bot.send_message(chat_id=chat_id, text="سؤال‌ت را کوتاه بپرس (فقط ثبت شرکت/تغییرات/قانون تجارت).", reply_markup=main_keyboard())
-    return
-
-# --- If waiting for help question, answer via Groq and then resend current step question ---
-if context.user_data.get("help_waiting"):
-    context.user_data["help_waiting"] = False
-    ans = ask_groq_legal(text)
-    context.bot.send_message(chat_id=chat_id, text=ans, reply_markup=main_keyboard())
-    # resend current step question
-    try:
-        if "get_label" in globals():
-            label = get_label(data.get("step", 0))
-            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
-        else:
-            # fallback to last_prompt
-            lp = context.user_data.get("last_prompt") or data.get("last_prompt")
-            if lp:
-                context.bot.send_message(chat_id=chat_id, text=lp, reply_markup=main_keyboard())
-    except Exception:
-        pass
-    return
-    text = update.message.text.strip()
-    user_data.setdefault(chat_id, {"step": 0})
+    # --- Intercept help button ---
+    if text == HELP_BUTTON_TEXT:
+        data["resume_step_after_help"] = data.get("step", 0)
+        context.user_data["help_waiting"] = True
+        context.bot.send_message(chat_id=chat_id, text="سؤال‌ت را کوتاه بپرس (فقط ثبت شرکت/تغییرات/قانون تجارت).", reply_markup=main_keyboard())
+        return
+    
+    # --- If waiting for help question, answer via Groq and then resend current step question ---
+    if context.user_data.get("help_waiting"):
+        context.user_data["help_waiting"] = False
+        ans = ask_groq_legal(text)
+        context.bot.send_message(chat_id=chat_id, text=ans, reply_markup=main_keyboard())
+        # resend current step question
+        try:
+            if "get_label" in globals():
+                label = get_label(data.get("step", 0))
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+            else:
+                # fallback to last_prompt
+                lp = context.user_data.get("last_prompt") or data.get("last_prompt")
+                if lp:
+                    context.bot.send_message(chat_id=chat_id, text=lp, reply_markup=main_keyboard())
+        except Exception:
+            pass
+        return
+        text = update.message.text.strip()
+        user_data.setdefault(chat_id, {"step": 0})
 
     # اگر کاربر دکمه بازگشت زد
     if text == BACK_BTN:
