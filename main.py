@@ -14,7 +14,7 @@ import os
 import uuid
 
 logging.basicConfig(level=logging.INFO)
-log = logging.getLogger(__name__)
+log = logging.getLogger("webhook")
 
 TOKEN = os.getenv("TELEGRAM_TOKEN", "7483081974:AAGRXi-NxDAgwYF-xpdhqsQmaGbw8-DipXY")
 bot = telegram.Bot(token=TOKEN)
@@ -3339,13 +3339,18 @@ def health():
 def webhook():
     try:
         data = request.get_json(force=True, silent=True) or {}
-        upd = Update.de_json(data, bot)
-        # پردازش را انجام بده؛ اگر کدت طولانی است، تلاش کن زیر 10 ثانیه بماند
-        dispatcher.process_update(upd)
+        update_obj = Update.de_json(data, bot)
+
+        # پردازش در بک‌گراند تا همیشه فوراً 200 بدهیم
+        threading.Thread(
+            target=lambda: dispatcher.process_update(update_obj),
+            daemon=True
+        ).start()
+
         return "ok", 200
-    except Exception as e:
+    except Exception:
         log.exception("Webhook error")
-        # همیشه 200 بده تا تلگرام 502 لاگ نکند
+        # حتی در خطا هم 200 بده که تلگرام 502 لاگ نکند
         return "ok", 200
 
 
