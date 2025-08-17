@@ -2,6 +2,7 @@ import telegram
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram import ReplyKeyboardMarkup, KeyboardButton
+from telegram import ChatAction
 from flask import Flask, request
 from collections import defaultdict
 from docx import Document
@@ -10,6 +11,7 @@ from docx.oxml.ns import qn
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 import os
 import uuid
+from groq import Groq
 
 TOKEN = "7483081974:AAGRXi-NxDAgwYF-xpdhqsQmaGbw8-DipXY"
 bot = telegram.Bot(token=TOKEN)
@@ -20,6 +22,34 @@ user_data = {}
 
 # متن دکمه بازگشت
 BACK_BTN = "⬅️ بازگشت"
+
+GROQ_MODEL_FAST = "llama-3.1-8b-instant"       # سریع و کم‌هزینه
+GROQ_MODEL_QUALITY = "llama-3.3-70b-versatile" # کیفیت بالاتر
+groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
+def ask_groq(user_text: str, system_prompt: str = None, model: str = GROQ_MODEL_FAST, max_tokens: int = 1024) -> str:
+    """
+    تماس ساده با Groq Chat Completions (OpenAI-compatible).
+    برای پاسخ‌های سریع از مدل 8B و برای کیفیت بالاتر از 70B استفاده کن.
+    """
+    if system_prompt is None:
+        system_prompt = (
+            "You are an assistant answering in Persian (Farsi). "
+            "متخصص قانون تجارت ایران و ثبت شرکت‌ها هستی. جواب‌ها کوتاه، روشن و کاربردی باشند. "
+            "در صورت نیاز مواد قانونی یا رویه‌های اداره ثبت شرکت‌ها را توضیح بده و اگر مطمئن نیستی، صادقانه بگو."
+        )
+
+    resp = groq_client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_text},
+        ],
+        temperature=0.2,
+        max_tokens=max_tokens,
+    )
+    return resp.choices[0].message.content.strip()
+
 
 # تابع ساخت کیبورد اصلی که فقط دکمه بازگشت داره
 def main_keyboard():
@@ -171,6 +201,33 @@ def get_label(field, **kwargs):
         return msg.format(**kwargs)  # برای کلیدهایی که جای‌نگهدار دارند مثل {سند}، {i}، {k}
     except Exception:
         return msg
+
+def cmd_ai(update, context):
+    chat_id = update.effective_chat.id
+    args_text = (update.message.text or "").split(" ", 1)
+    query = args_text[1].strip() if len(args_text) > 1 else ""
+
+    if not query:
+        update.message.reply_text("سؤال خود را بعد از دستور /ai بنویسید.\nمثال: /ai مراحل افزایش سرمایه در سهامی خاص چیست؟")
+        return
+
+    # نشان دادن typing
+    context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+
+    try:
+        # برای پاسخ سریع:
+        answer = ask_groq(query, model=GROQ_MODEL_FAST, max_tokens=900)
+        # اگر خواستی کیفیت بالاتر:
+        # answer = ask_groq(query, model=GROQ_MODEL_QUALITY, max_tokens=900)
+
+        # تلگرام محدودیت 4096 کاراکتر دارد؛ اگر طولانی شد، تکه‌تکه بفرست:
+        for chunk_start in range(0, len(answer), 3500):
+            update.message.reply_text(answer[chunk_start: chunk_start + 3500])
+    except Exception as e:
+        update.message.reply_text("❌ خطا در دریافت پاسخ از Groq. لطفاً دوباره تلاش کنید.")
+        # در لاگ سرور ثبت کن:
+        print("GROQ ERROR:", e)
+
 
 def handle_message(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
@@ -3247,6 +3304,7 @@ def webhook():
 updater = Updater(token=TOKEN, use_context=True)
 dispatcher = updater.dispatcher
 
+dispatcher.add_handler(CommandHandler("ai", cmd_ai))
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 dispatcher.add_handler(CallbackQueryHandler(button_handler))
