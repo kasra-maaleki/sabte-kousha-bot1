@@ -220,29 +220,37 @@ def cmd_ai(update, context):
 
 def handle_message(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
-    text = update.message.text.strip()
+    text = (update.message.text or "").strip()
     user_data.setdefault(chat_id, {"step": 0})
+
+    # --- گارد حالت AI (ابتدای تابع و با تورفتگی درست) ---
+    if context.user_data.get("ai_mode"):
+        return  # وقتی در AI هستیم، هندلر مراحل پاسخ را نگیرد
 
     # اگر کاربر دکمه بازگشت زد
     if text == BACK_BTN:
         handle_back(update, context)
         return
-        
-    if chat_id not in user_data:
-        user_data[chat_id] = {"step": 0}
+
+    # setdefault بالا کافی‌ست؛ این بلاک تکراری را لازم نیست نگه داری
+    # if chat_id not in user_data:
+    #     user_data[chat_id] = {"step": 0}
 
     data = user_data[chat_id]
     step = data.get("step", 0)
-    
-    موضوع = data.get("موضوع صورتجلسه")       # ✅ این دو خط رو اضافه کن
-    نوع_شرکت = data.get("نوع شرکت")          #
-    
-    
+
+    موضوع = data.get("موضوع صورتجلسه")
+    نوع_شرکت = data.get("نوع شرکت")
+
     if "موضوع صورتجلسه" not in data:
-        context.bot.send_message(chat_id=chat_id, text="لطفاً ابتدا موضوع صورتجلسه را انتخاب کنید. برای شروع مجدد /start را ارسال کنید .")
+        context.bot.send_message(
+            chat_id=chat_id,
+            text="لطفاً ابتدا موضوع صورتجلسه را انتخاب کنید. برای شروع مجدد /start را ارسال کنید .",
+            reply_markup=main_keyboard()
+        )
         return
 
-    # تعریف فیلدهای پایه برای تغییر آدرس مسئولیت محدود
+    # تعریف فیلدهای پایه برای تغییر آدرس مسئولیت محدود (در صورت نیاز)
     common_fields = ["نام شرکت", "شماره ثبت", "شناسه ملی", "سرمایه", "تاریخ", "ساعت", "آدرس جدید", "کد پستی", "وکیل"]
 
     # -------------------------------
@@ -255,107 +263,134 @@ def handle_message(update: Update, context: CallbackContext):
         if step == 1:
             data["نام شرکت"] = text
             data["step"] = 2
-            context.bot.send_message(chat_id=chat_id, text=get_label("شماره ثبت"))
+            label = get_label("شماره ثبت")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 2:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["شماره ثبت"] = text
             data["step"] = 3
-            context.bot.send_message(chat_id=chat_id, text=get_label("شناسه ملی"))
+            label = get_label("شناسه ملی")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 3:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["شناسه ملی"] = text
             data["step"] = 4
-            context.bot.send_message(chat_id=chat_id, text=get_label("سرمایه"))
+            label = get_label("سرمایه")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 4:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["سرمایه"] = text
             data["step"] = 5
-            context.bot.send_message(chat_id=chat_id, text=get_label("تاریخ"))
+            label = get_label("تاریخ")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 5:
             if 'is_valid_persian_date' in globals():
                 if not is_valid_persian_date(text):
-                    context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. نمونه: ۱۴۰۴/۰۵/۱۵")
+                    context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. نمونه: ۱۴۰۴/۰۵/۱۵", reply_markup=main_keyboard())
                     return
             else:
                 if text.count('/') != 2:
-                    context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.")
+                    context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.", reply_markup=main_keyboard())
                     return
             data["تاریخ"] = text
             data["step"] = 6
-            context.bot.send_message(chat_id=chat_id, text=get_label("ساعت"))
+            label = get_label("ساعت")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 6:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["ساعت"] = text
             data["step"] = 7
-            context.bot.send_message(chat_id=chat_id, text=get_label("مدیر عامل"))
+            label = get_label("مدیر عامل")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 7:
             data["مدیر عامل"] = text
             data["step"] = 8
-            context.bot.send_message(chat_id=chat_id, text=get_label("نایب رییس"))
+            label = get_label("نایب رییس")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 8:
             data["نایب رییس"] = text
             data["step"] = 9
-            context.bot.send_message(chat_id=chat_id, text=get_label("رییس"))
+            label = get_label("رییس")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 9:
             data["رییس"] = text
             data["step"] = 10
-            context.bot.send_message(chat_id=chat_id, text=get_label("منشی"))
+            label = get_label("منشی")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 10:
             data["منشی"] = text
             data["step"] = 11
-            context.bot.send_message(chat_id=chat_id, text=get_label("نام جدید شرکت"))
+            label = get_label("نام جدید شرکت")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 11:
             data["نام جدید شرکت"] = text
             data["step"] = 12
-            context.bot.send_message(chat_id=chat_id, text=get_label("وکیل"))
+            label = get_label("وکیل")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 12:
             data["وکیل"] = text
             send_summary(chat_id, context)
             data["step"] = 13
             return
-    
+
         if step >= 13:
             context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات ثبت شد. برای شروع مجدد /start را ارسال کنید.")
             return
+    
+    # تعریف فیلدهای پایه برای تغییر آدرس مسئولیت محدود
+    common_fields = ["نام شرکت", "شماره ثبت", "شناسه ملی", "سرمایه", "تاریخ", "ساعت", "آدرس جدید", "کد پستی", "وکیل"]
 
-    
-    # حالت تغییر آدرس + مسئولیت محدود
-    
+    # -------------------------------
+    # تغییر آدرس - مسئولیت محدود
+    # -------------------------------
     if data.get("موضوع صورتجلسه") == "تغییر آدرس" and data.get("نوع شرکت") == "مسئولیت محدود":
         if step == 1:
             data["نام شرکت"] = text
             data["step"] = 2
-            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:")
+            label = "شماره ثبت شرکت را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if 2 <= step <= 9:
@@ -363,37 +398,43 @@ def handle_message(update: Update, context: CallbackContext):
 
             if field == "تاریخ":
                 if text.count('/') != 2:
-                    context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. لطفاً به صورت ۱۴۰۴/۰۴/۰۷ وارد کنید (با دو /).")
+                    context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. لطفاً به صورت ۱۴۰۴/۰۴/۰۷ وارد کنید (با دو /).", reply_markup=main_keyboard())
                     return
 
             if field in persian_number_fields:
                 if not is_persian_number(text):
-                    context.bot.send_message(chat_id=chat_id, text=f"لطفاً مقدار '{field}' را فقط با اعداد فارسی وارد کنید.")
+                    context.bot.send_message(chat_id=chat_id, text=f"لطفاً مقدار '{field}' را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                     return
 
             data[field] = text
             data["step"] += 1
 
             if step == 9:
-                context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (بین ۲ تا ۷):")
+                label = "تعداد شرکا را وارد کنید (بین ۲ تا ۷):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
             else:
                 next_field = common_fields[step]
-                context.bot.send_message(chat_id=chat_id, text=get_label(next_field))
+                label = get_label(next_field)
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
 
         if step == 10:
             if not text.isdigit():
-                context.bot.send_message(chat_id=chat_id, text="❗️لطفاً تعداد شرکا را فقط با عدد وارد کنید (بین ۲ تا ۷).")
+                context.bot.send_message(chat_id=chat_id, text="❗️لطفاً تعداد شرکا را فقط با عدد وارد کنید (بین ۲ تا ۷).", reply_markup=main_keyboard())
                 return
             count = int(text)
             if count < 2 or count > 7:
-                context.bot.send_message(chat_id=chat_id, text="❗️تعداد شرکا باید بین ۲ تا ۷ باشد. لطفاً مجدداً وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️تعداد شرکا باید بین ۲ تا ۷ باشد. لطفاً مجدداً وارد کنید.", reply_markup=main_keyboard())
                 return
             data["تعداد شرکا"] = count
             data["step"] += 1
             data["current_partner"] = 1
-            context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره ۱ را وارد کنید:")
+            label = "نام شریک شماره ۱ را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step > 10:
@@ -402,377 +443,436 @@ def handle_message(update: Update, context: CallbackContext):
 
             if f"شریک {current_partner}" not in data:
                 data[f"شریک {current_partner}"] = text
-                context.bot.send_message(chat_id=chat_id, text=f"میزان سهم الشرکه شریک شماره {current_partner} را به ریال وارد کنید (عدد فارسی):")
+                label = f"میزان سهم الشرکه شریک شماره {current_partner} را به ریال وارد کنید (عدد فارسی):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
             elif f"سهم الشرکه شریک {current_partner}" not in data:
                 if not is_persian_number(text):
-                    context.bot.send_message(chat_id=chat_id, text="❗️لطفاً میزان سهم الشرکه را فقط با اعداد فارسی وارد کنید.")
+                    context.bot.send_message(chat_id=chat_id, text="❗️لطفاً میزان سهم الشرکه را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                     return
                 data[f"سهم الشرکه شریک {current_partner}"] = text
                 if current_partner < count:
                     data["current_partner"] = current_partner + 1
-                    context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {current_partner + 1} را وارد کنید:")
+                    label = f"نام شریک شماره {current_partner + 1} را وارد کنید:"
+                    remember_last_question(context, label)
+                    context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                     return
                 else:
                     send_summary(chat_id, context)
                     data["step"] = 11
                     return
-                    
+
         if step >= 11:
-            context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات قبلاً ثبت شده است. برای شروع مجدد /start را ارسال کنید.")
+            context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات قبلاً ثبت شده است. برای شروع مجدد /start را ارسال کنید.", reply_markup=main_keyboard())
             return
 
     # -------------------------------
     # تغییر نام شرکت - مسئولیت محدود
-    # گام‌ها: 1 نام شرکت، 2 ثبت، 3 شناسه، 4 سرمایه، 5 تاریخ، 6 ساعت،
-    # 7 نام جدید، 8 تعداد شرکا، 9 نام شریک i، 10 سهم‌الشرکه شریک i، 11 وکیل → خروجی
     # -------------------------------
     if موضوع == "تغییر نام شرکت" and نوع_شرکت == "مسئولیت محدود":
         if step == 1:
             data["نام شرکت"] = text
             data["step"] = 2
-            context.bot.send_message(chat_id=chat_id, text=get_label("شماره ثبت"))
+            label = get_label("شماره ثبت")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 2:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["شماره ثبت"] = text
             data["step"] = 3
-            context.bot.send_message(chat_id=chat_id, text=get_label("شناسه ملی"))
+            label = get_label("شناسه ملی")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 3:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["شناسه ملی"] = text
             data["step"] = 4
-            context.bot.send_message(chat_id=chat_id, text=get_label("سرمایه"))
+            label = get_label("سرمایه")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 4:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["سرمایه"] = text
             data["step"] = 5
-            context.bot.send_message(chat_id=chat_id, text=get_label("تاریخ"))
+            label = get_label("تاریخ")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 5:
             if 'is_valid_persian_date' in globals():
                 if not is_valid_persian_date(text):
-                    context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. نمونه: ۱۴۰۴/۰۵/۱۵")
+                    context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. نمونه: ۱۴۰۴/۰۵/۱۵", reply_markup=main_keyboard())
                     return
             else:
                 if text.count('/') != 2:
-                    context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.")
+                    context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.", reply_markup=main_keyboard())
                     return
             data["تاریخ"] = text
             data["step"] = 6
-            context.bot.send_message(chat_id=chat_id, text=get_label("ساعت"))
+            label = get_label("ساعت")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 6:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["ساعت"] = text
             data["step"] = 7
-            context.bot.send_message(chat_id=chat_id, text=get_label("نام جدید شرکت"))
+            label = get_label("نام جدید شرکت")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 7:
             data["نام جدید شرکت"] = text
             data["step"] = 8
-            context.bot.send_message(chat_id=chat_id, text=get_label("تعداد شرکا"))
+            label = get_label("تعداد شرکا")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 8:
             if not text.isdigit():
-                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.", reply_markup=main_keyboard())
                 return
             count = int(text)
             if count < 2:
-                context.bot.send_message(chat_id=chat_id, text="❗️حداقل دو شریک لازم است.")
+                context.bot.send_message(chat_id=chat_id, text="❗️حداقل دو شریک لازم است.", reply_markup=main_keyboard())
                 return
             data["تعداد شرکا"] = count
             data["current_partner"] = 1
             data["step"] = 9
-            context.bot.send_message(chat_id=chat_id, text=get_label("نام شریک", i=1))
+            label = get_label("نام شریک", i=1)
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 9:
             i = data["current_partner"]
             data[f"شریک {i}"] = text
             data["step"] = 10
-            context.bot.send_message(chat_id=chat_id, text=get_label("سهم الشرکه شریک", i=i))
+            label = get_label("سهم الشرکه شریک", i=i)
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 10:
             i = data["current_partner"]
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️سهم‌الشرکه را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️سهم‌الشرکه را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data[f"سهم الشرکه شریک {i}"] = text
             if i < data["تعداد شرکا"]:
                 data["current_partner"] = i + 1
                 data["step"] = 9
-                context.bot.send_message(chat_id=chat_id, text=get_label("نام شریک", i=i+1))
+                label = get_label("نام شریک", i=i+1)
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             else:
                 data["step"] = 11
-                context.bot.send_message(chat_id=chat_id, text=get_label("وکیل"))
+                label = get_label("وکیل")
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 11:
             data["وکیل"] = text
             send_summary(chat_id, context)
             data["step"] = 12
             return
-    
+
         if step >= 12:
-            context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات ثبت شد. برای شروع مجدد /start را ارسال کنید.")
+            context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات ثبت شد. برای شروع مجدد /start را ارسال کنید.", reply_markup=main_keyboard())
             return
 
-    # ✅ صورتجلسه تغییر موضوع فعالیت - مسئولیت محدود
-    
+    # ✅ تغییر موضوع فعالیت - مسئولیت محدود
     if موضوع == "تغییر موضوع فعالیت" and نوع_شرکت == "مسئولیت محدود":
         if step == 1:
             data["نام شرکت"] = text
             data["step"] = 2
-            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:")
+            label = "شماره ثبت شرکت را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 2:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["شماره ثبت"] = text
             data["step"] = 3
-            context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید:")
+            label = "شناسه ملی شرکت را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 3:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["شناسه ملی"] = text
             data["step"] = 4
-            context.bot.send_message(chat_id=chat_id, text="سرمایه شرکت به ریال را وارد کنید (اعداد فارسی):")
+            label = "سرمایه شرکت به ریال را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 4:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["سرمایه"] = text
             data["step"] = 5
-            context.bot.send_message(chat_id=chat_id, text="تاریخ صورتجلسه را وارد کنید (مثلاً: ۱۴۰۴/۰۵/۱۵):")
+            label = "تاریخ صورتجلسه را وارد کنید (مثلاً: ۱۴۰۴/۰۵/۱۵):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 5:
             if text.count('/') != 2:
-                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.")
+                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.", reply_markup=main_keyboard())
                 return
             data["تاریخ"] = text
             data["step"] = 6
-            context.bot.send_message(chat_id=chat_id, text="ساعت جلسه را وارد کنید:")
+            label = "ساعت جلسه را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 6:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["ساعت"] = text
             data["step"] = 7
-            context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید:")
+            label = "تعداد شرکا را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 7:
             if not text.isdigit():
-                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.", reply_markup=main_keyboard())
                 return
             count = int(text)
             data["تعداد شرکا"] = count
             data["current_partner"] = 1
             data["step"] = 8
-            context.bot.send_message(chat_id=chat_id, text="نام شریک شماره ۱ را وارد کنید:")
+            label = "نام شریک شماره ۱ را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 8:
             i = data["current_partner"]
             data[f"شریک {i}"] = text
             data["step"] = 9
-            context.bot.send_message(chat_id=chat_id, text=f"سهم الشرکه شریک شماره {i} را وارد کنید (عدد فارسی):")
+            label = f"سهم الشرکه شریک شماره {i} را وارد کنید (عدد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 9:
             i = data["current_partner"]
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️سهم الشرکه را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️سهم الشرکه را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data[f"سهم الشرکه شریک {i}"] = text
             if i < data["تعداد شرکا"]:
                 data["current_partner"] += 1
                 data["step"] = 8
-                context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {i+1} را وارد کنید:")
+                label = f"نام شریک شماره {i+1} را وارد کنید:"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             else:
                 data["step"] = 10
+                # مرحله بعدی با دکمه‌های اینلاین است؛ این را در last_question ذخیره نکن تا در بازگشت از AI مشکلی نباشد.
                 keyboard = [
                     [InlineKeyboardButton("➕ اضافه می‌گردد", callback_data='الحاق')],
                     [InlineKeyboardButton("🔄 جایگزین می‌گردد", callback_data='جایگزین')]
                 ]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                context.bot.send_message(chat_id=chat_id, text="❓آیا موضوعات جدید به موضوع قبلی اضافه می‌شوند یا جایگزین آن؟", reply_markup=reply_markup)
+                context.bot.send_message(chat_id=chat_id, text="❓آیا موضوعات جدید به موضوع قبلی اضافه می‌شوند یا جایگزین آن؟", reply_markup=InlineKeyboardMarkup(keyboard))
             return
 
-        # در CallbackHandler دکمه‌های مرحله 10:
+        # در CallbackHandler مربوط به این مرحله، نیازی به remember_last_question نیست (ورودی از طریق دکمه است)
         if data.get("step") == 10 and update.callback_query:
             answer = update.callback_query.data
             update.callback_query.answer()
             if answer in ["الحاق", "جایگزین"]:
                 data["نوع تغییر موضوع"] = answer
                 data["step"] = 11
-                context.bot.send_message(chat_id=chat_id, text="موضوع جدید فعالیت شرکت را وارد کنید:")
+                label = "موضوع جدید فعالیت شرکت را وارد کنید:"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 11:
             data["موضوع جدید"] = text
             data["step"] = 12
-            context.bot.send_message(chat_id=chat_id, text="نام وکیل (ثبت‌کننده صورتجلسه) را وارد کنید:")
+            label = "نام وکیل (ثبت‌کننده صورتجلسه) را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-    
+
         if step == 12:
             data["وکیل"] = text
             send_summary(chat_id, context)
             return
 
-        # ✅ تغییر موضوع فعالیت – سهامی خاص (با انتخاب الحاق/جایگزین)
+    # ✅ تغییر موضوع فعالیت – سهامی خاص
     if موضوع == "تغییر موضوع فعالیت" and نوع_شرکت == "سهامی خاص":
-        # 1) نام شرکت
         if step == 1:
             data["نام شرکت"] = text
             data["step"] = 2
-            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید (اعداد فارسی):")
+            label = "شماره ثبت شرکت را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 2) شماره ثبت
         if step == 2:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["شماره ثبت"] = text
             data["step"] = 3
-            context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید (اعداد فارسی):")
+            label = "شناسه ملی شرکت را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 3) شناسه ملی
         if step == 3:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["شناسه ملی"] = text
             data["step"] = 4
-            context.bot.send_message(chat_id=chat_id, text="سرمایه ثبت‌شده شرکت (به ریال، اعداد فارسی):")
+            label = "سرمایه ثبت‌شده شرکت (به ریال، اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 4) سرمایه
         if step == 4:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["سرمایه"] = text
             data["step"] = 5
-            context.bot.send_message(chat_id=chat_id, text="تاریخ صورتجلسه را وارد کنید (مثلاً: ۱۴۰۴/۰۵/۱۵):")
+            label = "تاریخ صورتجلسه را وارد کنید (مثلاً: ۱۴۰۴/۰۵/۱۵):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 5) تاریخ
         if step == 5:
             if text.count('/') != 2:
-                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.")
+                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.", reply_markup=main_keyboard())
                 return
             data["تاریخ"] = text
             data["step"] = 6
-            context.bot.send_message(chat_id=chat_id, text="ساعت جلسه را وارد کنید (اعداد فارسی):")
+            label = "ساعت جلسه را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 6) ساعت
         if step == 6:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["ساعت"] = text
             data["step"] = 7
-            context.bot.send_message(chat_id=chat_id, text="مدیر عامل (رئیس جلسه) را وارد کنید:")
+            label = "مدیر عامل (رئیس جلسه) را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 7) مدیرعامل
         if step == 7:
             data["مدیر عامل"] = text
             data["step"] = 8
-            context.bot.send_message(chat_id=chat_id, text="ناظر 1 جلسه (نایب رئیس) را وارد کنید:")
+            label = "ناظر 1 جلسه (نایب رئیس) را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 8) ناظر 1 (نایب رئیس) – نباید با مدیرعامل یکی باشد
         if step == 8:
             if text == data["مدیر عامل"]:
-                context.bot.send_message(chat_id=chat_id, text="❗️ناظر 1 نمی‌تواند با مدیر عامل یکی باشد. شخص دیگری را وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️ناظر 1 نمی‌تواند با مدیر عامل یکی باشد. شخص دیگری را وارد کنید.", reply_markup=main_keyboard())
                 return
             data["نایب رییس"] = text
             data["step"] = 9
-            context.bot.send_message(chat_id=chat_id, text="ناظر 2 جلسه (رییس) را وارد کنید:")
+            label = "ناظر 2 جلسه (رییس) را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 9) ناظر 2 (رییس) – نباید با مدیرعامل یا ناظر1 یکی باشد
         if step == 9:
             if text == data["مدیر عامل"] or text == data["نایب رییس"]:
-                context.bot.send_message(chat_id=chat_id, text="❗️ناظر 2 نمی‌تواند با مدیر عامل یا ناظر 1 یکی باشد.")
+                context.bot.send_message(chat_id=chat_id, text="❗️ناظر 2 نمی‌تواند با مدیر عامل یا ناظر 1 یکی باشد.", reply_markup=main_keyboard())
                 return
             data["رییس"] = text
             data["step"] = 10
-            context.bot.send_message(chat_id=chat_id, text="منشی جلسه را وارد کنید:")
+            label = "منشی جلسه را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 10) منشی
         if step == 10:
             data["منشی"] = text
             data["step"] = 11
-            context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران حاضر را وارد کنید:")
+            label = "تعداد سهامداران حاضر را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 11) تعداد سهامداران
         if step == 11:
             if not text.isdigit():
-                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.", reply_markup=main_keyboard())
                 return
             count = int(text)
             if count < 1:
-                context.bot.send_message(chat_id=chat_id, text="❗️حداقل یک سهامدار باید وجود داشته باشد.")
+                context.bot.send_message(chat_id=chat_id, text="❗️حداقل یک سهامدار باید وجود داشته باشد.", reply_markup=main_keyboard())
                 return
             data["تعداد سهامداران"] = count
             data["سهامدار_index"] = 1
             data["step"] = 12
-            context.bot.send_message(chat_id=chat_id, text="نام سهامدار شماره ۱ را وارد کنید:")
+            label = "نام سهامدار شماره ۱ را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 12) حلقه دریافت سهامداران (نام → تعداد)
         if step == 12:
             i = data.get("سهامدار_index", 1)
             prefix = f"سهامدار {i}"
             if f"{prefix} نام" not in data:
                 data[f"{prefix} نام"] = text
-                context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام {prefix} را وارد کنید (اعداد فارسی):")
+                label = f"تعداد سهام {prefix} را وارد کنید (اعداد فارسی):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
             elif f"{prefix} تعداد" not in data:
                 if not is_persian_number(text):
-                    context.bot.send_message(chat_id=chat_id, text="❗️تعداد سهام را فقط با اعداد فارسی وارد کنید.")
+                    context.bot.send_message(chat_id=chat_id, text="❗️تعداد سهام را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                     return
                 data[f"{prefix} تعداد"] = text
                 if i < data["تعداد سهامداران"]:
                     data["سهامدار_index"] = i + 1
-                    context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار شماره {i+1} را وارد کنید:")
+                    label = f"نام سهامدار شماره {i+1} را وارد کنید:"
+                    remember_last_question(context, label)
+                    context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                     return
                 else:
                     # پس از تکمیل سهامداران، انتخاب الحاق/جایگزین
@@ -785,14 +885,14 @@ def handle_message(update: Update, context: CallbackContext):
                                              reply_markup=InlineKeyboardMarkup(keyboard))
                     return
 
-        # 14) موضوع جدید (پس از انتخاب در callback)
         if step == 14:
             data["موضوع جدید"] = text
             data["step"] = 15
-            context.bot.send_message(chat_id=chat_id, text="نام وکیل (شخص ثبت‌کننده صورتجلسه) را وارد کنید:")
+            label = "نام وکیل (شخص ثبت‌کننده صورتجلسه) را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 15) وکیل → خروجی
         if step == 15:
             data["وکیل"] = text
             send_summary(chat_id, context)
@@ -800,141 +900,159 @@ def handle_message(update: Update, context: CallbackContext):
 
     # -------------------------------
     # انحلال شرکت - مسئولیت محدود
-    # steps: 1..6 خطی، 7=تعداد شرکا، 8=نام شریک i، 9=سهم‌الشرکه شریک i،
-    # سپس: 10=علت انحلال، 11=نام مدیر تصفیه، 12=کدملی مدیر تصفیه، 13=مدت، 14=آدرس، 15=وکیل → خروجی
     # -------------------------------
     if موضوع == "انحلال شرکت" and نوع_شرکت == "مسئولیت محدود":
-        # 1) نام شرکت
         if step == 1:
             data["نام شرکت"] = text
             data["step"] = 2
-            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید (اعداد فارسی):")
+            label = "شماره ثبت شرکت را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 2) شماره ثبت
         if step == 2:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["شماره ثبت"] = text
             data["step"] = 3
-            context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید (اعداد فارسی):")
+            label = "شناسه ملی شرکت را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 3) شناسه ملی
         if step == 3:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["شناسه ملی"] = text
             data["step"] = 4
-            context.bot.send_message(chat_id=chat_id, text="سرمایه ثبت‌شده شرکت (ریال، اعداد فارسی):")
+            label = "سرمایه ثبت‌شده شرکت (ریال، اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 4) سرمایه
         if step == 4:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["سرمایه"] = text
             data["step"] = 5
-            context.bot.send_message(chat_id=chat_id, text="تاریخ صورتجلسه را وارد کنید (مثلاً: ۱۴۰۴/۰۵/۱۵):")
+            label = "تاریخ صورتجلسه را وارد کنید (مثلاً: ۱۴۰۴/۰۵/۱۵):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 5) تاریخ
         if step == 5:
             if text.count('/') != 2:
-                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.")
+                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.", reply_markup=main_keyboard())
                 return
             data["تاریخ"] = text
             data["step"] = 6
-            context.bot.send_message(chat_id=chat_id, text="ساعت جلسه را وارد کنید (اعداد فارسی):")
+            label = "ساعت جلسه را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 6) ساعت
         if step == 6:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["ساعت"] = text
             data["step"] = 7
-            context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید (عدد):")
+            label = "تعداد شرکا را وارد کنید (عدد):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 7) تعداد شرکا
         if step == 7:
             if not text.isdigit():
-                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.", reply_markup=main_keyboard())
                 return
             count = int(text)
             if count < 2:
-                context.bot.send_message(chat_id=chat_id, text="❗️حداقل دو شریک لازم است.")
+                context.bot.send_message(chat_id=chat_id, text="❗️حداقل دو شریک لازم است.", reply_markup=main_keyboard())
                 return
             data["تعداد شرکا"] = count
             data["current_partner"] = 1
             data["step"] = 8
-            context.bot.send_message(chat_id=chat_id, text="نام شریک شماره ۱ را وارد کنید:")
+            label = "نام شریک شماره ۱ را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 8) نام شریک i
         if step == 8:
             i = data["current_partner"]
             data[f"شریک {i}"] = text
             data["step"] = 9
-            context.bot.send_message(chat_id=chat_id, text=f"سهم‌الشرکه شریک شماره {i} را به ریال وارد کنید (اعداد فارسی):")
+            label = f"سهم‌الشرکه شریک شماره {i} را به ریال وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 9) سهم‌الشرکه شریک i
         if step == 9:
             i = data["current_partner"]
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️سهم‌الشرکه را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️سهم‌الشرکه را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data[f"سهم الشرکه شریک {i}"] = text
             if i < data["تعداد شرکا"]:
                 data["current_partner"] = i + 1
                 data["step"] = 8
-                context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {i+1} را وارد کنید:")
+                label = f"نام شریک شماره {i+1} را وارد کنید:"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             else:
                 data["step"] = 10
-                context.bot.send_message(chat_id=chat_id, text="علت انحلال را وارد کنید (مثلاً: مشکلات اقتصادی، توافق شرکا و ...):")
+                label = "علت انحلال را وارد کنید (مثلاً: مشکلات اقتصادی، توافق شرکا و ...):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # 10..15) سایر اطلاعات و خروجی
         if step == 10:
             data["علت انحلال"] = text
             data["step"] = 11
-            context.bot.send_message(chat_id=chat_id, text="نام مدیر تصفیه را وارد کنید:")
+            label = "نام مدیر تصفیه را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 11:
             data["نام مدیر تصفیه"] = text
             data["step"] = 12
-            context.bot.send_message(chat_id=chat_id, text="کد ملی مدیر تصفیه را وارد کنید (اعداد فارسی):")
+            label = "کد ملی مدیر تصفیه را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 12:
             if not is_valid_persian_national_id(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی باید دقیقاً ۱۰ رقم فارسی باشد.")
+                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی باید دقیقاً ۱۰ رقم فارسی باشد.", reply_markup=main_keyboard())
                 return
             data["کد ملی مدیر تصفیه"] = text
             data["step"] = 13
-            context.bot.send_message(chat_id=chat_id, text="مدت مدیر تصفیه (سال) را وارد کنید (اعداد فارسی):")
+            label = "مدت مدیر تصفیه (سال) را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 13:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️مدت را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️مدت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["مدت مدیر تصفیه"] = text
             data["step"] = 14
-            context.bot.send_message(chat_id=chat_id, text="آدرس مدیر تصفیه و محل تصفیه را وارد کنید:")
+            label = "آدرس مدیر تصفیه و محل تصفیه را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 14:
             data["آدرس مدیر تصفیه"] = text
             data["step"] = 15
-            context.bot.send_message(chat_id=chat_id, text="نام وکیل (ثبت‌کننده صورتجلسه) را وارد کنید:")
+            label = "نام وکیل (ثبت‌کننده صورتجلسه) را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 15:
@@ -944,161 +1062,197 @@ def handle_message(update: Update, context: CallbackContext):
             return
 
         if step >= 16:
-            context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات قبلاً ثبت شده است. برای شروع مجدد /start را ارسال کنید.")
+            context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات قبلاً ثبت شده است. برای شروع مجدد /start را ارسال کنید.", reply_markup=main_keyboard())
             return
 
     # -------------------------------
     # انحلال شرکت - سهامی خاص
-    # steps خطی: 1..15 سپس حلقه سهامداران 16/17، و در پایان 18=وکیل
     # -------------------------------
     if موضوع == "انحلال شرکت" and نوع_شرکت == "سهامی خاص":
         if step == 1:
             data["نام شرکت"] = text
             data["step"] = 2
-            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید (اعداد فارسی):")
+            label = "شماره ثبت شرکت را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 2:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["شماره ثبت"] = text
             data["step"] = 3
-            context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید (اعداد فارسی):")
+            label = "شناسه ملی شرکت را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 3:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["شناسه ملی"] = text
             data["step"] = 4
-            context.bot.send_message(chat_id=chat_id, text="سرمایه ثبت‌شده (به ریال، اعداد فارسی):")
+            label = "سرمایه ثبت‌شده (به ریال، اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 4:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["سرمایه"] = text
             data["step"] = 5
-            context.bot.send_message(chat_id=chat_id, text="تاریخ صورتجلسه را وارد کنید (مثلاً ۱۴۰۴/۰۵/۱۵):")
+            label = "تاریخ صورتجلسه را وارد کنید (مثلاً ۱۴۰۴/۰۵/۱۵):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 5:
             if text.count('/') != 2:
-                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.")
+                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.", reply_markup=main_keyboard())
                 return
             data["تاریخ"] = text
             data["step"] = 6
-            context.bot.send_message(chat_id=chat_id, text="ساعت جلسه را وارد کنید (اعداد فارسی):")
+            label = "ساعت جلسه را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 6:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["ساعت"] = text
             data["step"] = 7
-            context.bot.send_message(chat_id=chat_id, text="مدیر عامل (رئیس جلسه) را وارد کنید:")
+            label = "مدیر عامل (رئیس جلسه) را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 7:
             data["مدیر عامل"] = text
             data["step"] = 8
-            context.bot.send_message(chat_id=chat_id, text="ناظر 1 جلسه (از بین هیئت مدیره) را وارد کنید:")
+            label = "ناظر 1 جلسه (از بین هیئت مدیره) را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 8:
             if text == data["مدیر عامل"]:
-                context.bot.send_message(chat_id=chat_id, text="❗️ناظر 1 نمی‌تواند با مدیر عامل یکی باشد.")
+                context.bot.send_message(chat_id=chat_id, text="❗️ناظر 1 نمی‌تواند با مدیر عامل یکی باشد.", reply_markup=main_keyboard())
                 return
             data["نایب رییس"] = text
             data["step"] = 9
-            context.bot.send_message(chat_id=chat_id, text="ناظر 2 جلسه (از بین هیئت مدیره) را وارد کنید:")
+            label = "ناظر 2 جلسه (از بین هیئت مدیره) را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 9:
             if text == data["مدیر عامل"] or text == data["نایب رییس"]:
-                context.bot.send_message(chat_id=chat_id, text="❗️ناظر 2 نمی‌تواند با مدیر عامل یا ناظر 1 یکی باشد.")
+                context.bot.send_message(chat_id=chat_id, text="❗️ناظر 2 نمی‌تواند با مدیر عامل یا ناظر 1 یکی باشد.", reply_markup=main_keyboard())
                 return
             data["رییس"] = text
             data["step"] = 10
-            context.bot.send_message(chat_id=chat_id, text="منشی جلسه را وارد کنید:")
+            label = "منشی جلسه را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 10:
             data["منشی"] = text
             data["step"] = 11
-            context.bot.send_message(chat_id=chat_id, text="علت انحلال را وارد کنید (مثلاً: مشکلات اقتصادی ، توافق شرکا و ...):")
+            label = "علت انحلال را وارد کنید (مثلاً: مشکلات اقتصادی ، توافق شرکا و ...):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 11:
             data["علت انحلال"] = text
             data["step"] = 12
-            context.bot.send_message(chat_id=chat_id, text="نام مدیر تصفیه را وارد کنید:")
+            label = "نام مدیر تصفیه را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 12:
             data["نام مدیر تصفیه"] = text
             data["step"] = 13
-            context.bot.send_message(chat_id=chat_id, text="کد ملی مدیر تصفیه را وارد کنید (اعداد فارسی):")
+            label = "کد ملی مدیر تصفیه را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 13:
             if not is_valid_persian_national_id(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی باید دقیقاً ۱۰ رقم فارسی باشد.")
+                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی باید دقیقاً ۱۰ رقم فارسی باشد.", reply_markup=main_keyboard())
                 return
             data["کد ملی مدیر تصفیه"] = text
             data["step"] = 14
-            context.bot.send_message(chat_id=chat_id, text="مدت مدیر تصفیه (سال) را وارد کنید (اعداد فارسی):")
+            label = "مدت مدیر تصفیه (سال) را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 14:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️مدت را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️مدت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["مدت مدیر تصفیه"] = text
             data["step"] = 15
-            context.bot.send_message(chat_id=chat_id, text="آدرس مدیر تصفیه و محل تصفیه را وارد کنید:")
+            label = "آدرس مدیر تصفیه و محل تصفیه را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 15:
             data["آدرس مدیر تصفیه"] = text
             data["step"] = 16
-            context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران حاضر را وارد کنید (عدد):")
+            label = "تعداد سهامداران حاضر را وارد کنید (عدد):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # تعداد سهامداران
         if step == 16:
             if not text.isdigit():
-                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.", reply_markup=main_keyboard())
                 return
             data["تعداد سهامداران حاضر"] = int(text)
             data["سهامدار_index"] = 1
             data["step"] = 17
-            context.bot.send_message(chat_id=chat_id, text="نام سهامدار ۱ را وارد کنید:")
+            label = "نام سهامدار ۱ را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # حلقه سهامداران: نام → تعداد
+       # حلقه سهامداران: نام → تعداد
         if step == 17:
             i = data["سهامدار_index"]
             if f"سهامدار {i} نام" not in data:
                 data[f"سهامدار {i} نام"] = text
-                context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار {i} را وارد کنید (اعداد فارسی):")
+                label = f"تعداد سهام سهامدار {i} را وارد کنید (اعداد فارسی):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
             elif f"سهامدار {i} تعداد" not in data:
                 if not is_persian_number(text):
-                    context.bot.send_message(chat_id=chat_id, text="❗️تعداد سهام را فقط با اعداد فارسی وارد کنید.")
+                    context.bot.send_message(chat_id=chat_id, text="❗️تعداد سهام را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                     return
                 data[f"سهامدار {i} تعداد"] = text
                 if i < data["تعداد سهامداران حاضر"]:
                     data["سهامدار_index"] += 1
-                    context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار {i+1} را وارد کنید:")
+                    label = f"نام سهامدار {i+1} را وارد کنید:"
+                    remember_last_question(context, label)
+                    context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                     return
                 else:
                     data["step"] = 18
-                    context.bot.send_message(chat_id=chat_id, text="نام وکیل (ثبت‌کننده صورتجلسه) را وارد کنید:")
+                    label = "نام وکیل (ثبت‌کننده صورتجلسه) را وارد کنید:"
+                    remember_last_question(context, label)
+                    context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                     return
 
         if step == 18:
@@ -1108,8 +1262,11 @@ def handle_message(update: Update, context: CallbackContext):
             return
 
         if step >= 19:
-            context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات قبلاً ثبت شده است. برای شروع مجدد /start را ارسال کنید.")
+            context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات قبلاً ثبت شده است. برای شروع مجدد /start را ارسال کنید.", reply_markup=main_keyboard())
             return
+
+
+# --- به‌روزرسانی کامل: نقل و انتقال سهم‌الشرکه - مسئولیت محدود ---
 
     # -------------------------------
     # نقل و انتقال سهم الشرکه - مسئولیت محدود
@@ -1118,164 +1275,199 @@ def handle_message(update: Update, context: CallbackContext):
         if step == 1:
             data["نام شرکت"] = text
             data["step"] = 2
-            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید (اعداد فارسی):")
+            label = "شماره ثبت شرکت را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 2:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["شماره ثبت"] = text
             data["step"] = 3
-            context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید (اعداد فارسی):")
+            label = "شناسه ملی شرکت را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 3:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["شناسه ملی"] = text
             data["step"] = 4
-            context.bot.send_message(chat_id=chat_id, text="سرمایه ثبت‌شده شرکت (ریال):")
+            label = "سرمایه ثبت‌شده شرکت (ریال):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 4:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["سرمایه"] = text
             data["step"] = 5
-            context.bot.send_message(chat_id=chat_id, text="تاریخ صورتجلسه را وارد کنید (مثلاً: ۱۴۰۴/۰۶/۰۱):")
+            label = "تاریخ صورتجلسه را وارد کنید (مثلاً: ۱۴۰۴/۰۶/۰۱):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 5:
             if not is_valid_persian_date(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. نمونه: ۱۴۰۴/۰۵/۱۵")
+                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. نمونه: ۱۴۰۴/۰۵/۱۵", reply_markup=main_keyboard())
                 return
             data["تاریخ"] = text
             data["step"] = 6
-            context.bot.send_message(chat_id=chat_id, text=get_label("ساعت"))
+            label = get_label("ساعت")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 6:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["ساعت"] = text
             data["step"] = 7
-            context.bot.send_message(chat_id=chat_id, text="تعداد شرکا را وارد کنید:")
+            label = "تعداد شرکا را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         # شرکا
         if step == 7:
             if not text.isdigit():
-                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.", reply_markup=main_keyboard())
                 return
             count = int(text)
             if count < 2:
-                context.bot.send_message(chat_id=chat_id, text="❗️حداقل دو شریک لازم است.")
+                context.bot.send_message(chat_id=chat_id, text="❗️حداقل دو شریک لازم است.", reply_markup=main_keyboard())
                 return
             data["تعداد شرکا"] = count
             data["current_partner"] = 1
             data["step"] = 8
-            context.bot.send_message(chat_id=chat_id, text=get_label("نام شریک", i=1))
+            label = get_label("نام شریک", i=1)
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
             
         if step == 8:
             i = data["current_partner"]
             data[f"شریک {i}"] = text
             data["step"] = 9
-            context.bot.send_message(chat_id=chat_id, text=f"سهم‌الشرکه شریک شماره {i} (ریال، اعداد فارسی):")
+            label = f"سهم‌الشرکه شریک شماره {i} (ریال، اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 9:
             i = data["current_partner"]
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️سهم‌الشرکه را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️سهم‌الشرکه را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data[f"سهم الشرکه شریک {i}"] = text
             if i < data["تعداد شرکا"]:
                 data["current_partner"] = i + 1
                 data["step"] = 8
-                context.bot.send_message(chat_id=chat_id, text=f"نام شریک شماره {i+1} را وارد کنید:")
+                label = f"نام شریک شماره {i+1} را وارد کنید:"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
             else:
                 data["step"] = 10
-                context.bot.send_message(chat_id=chat_id, text="تعداد فروشندگان را وارد کنید:")
+                label = "تعداد فروشندگان را وارد کنید:"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
 
         # فروشندگان
         if step == 10:
             if not text.isdigit():
-                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.", reply_markup=main_keyboard())
                 return
             data["تعداد فروشندگان"] = int(text)
             data["فروشنده_index"] = 1
             data["step"] = 11
-            context.bot.send_message(chat_id=chat_id, text="نام فروشنده شماره ۱ را وارد کنید:")
+            label = "نام فروشنده شماره ۱ را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 11:
             i = data["فروشنده_index"]
             data[f"فروشنده {i} نام"] = text
             data["step"] = 12
-            context.bot.send_message(chat_id=chat_id, text=f"کد ملی فروشنده {i} را وارد کنید (اعداد فارسی):")
+            label = f"کد ملی فروشنده {i} را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 12:
             i = data["فروشنده_index"]
             if not is_valid_persian_national_id(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی باید دقیقاً ۱۰ رقم فارسی باشد.")
+                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی باید دقیقاً ۱۰ رقم فارسی باشد.", reply_markup=main_keyboard())
                 return
             data[f"فروشنده {i} کد ملی"] = text
             data["step"] = 13
-            context.bot.send_message(chat_id=chat_id, text=get_label("سهم کل فروشنده", i=i))
+            label = get_label("سهم کل فروشنده", i=i)
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-
 
         if step == 13:
             i = data["فروشنده_index"]
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️مبلغ را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️مبلغ را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data[f"فروشنده {i} سهم کل"] = text
             data["step"] = 14
-            context.bot.send_message(chat_id=chat_id, text=get_label("شماره سند صلح", i=i))
+            label = get_label("شماره سند صلح", i=i)
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 14:
             i = data["فروشنده_index"]
             data[f"فروشنده {i} سند صلح"] = text
             data["step"] = 15
-            context.bot.send_message(chat_id=chat_id, text=f"تاریخ سند صلح فروشنده {i} را وارد کنید:")
+            label = f"تاریخ سند صلح فروشنده {i} را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 15:
             i = data["فروشنده_index"]
             if not is_valid_persian_date(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. نمونه: ۱۴۰۴/۰۵/۱۵")
+                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. نمونه: ۱۴۰۴/۰۵/۱۵", reply_markup=main_keyboard())
                 return
             data[f"فروشنده {i} تاریخ سند"] = text
             data["step"] = 16
-            context.bot.send_message(chat_id=chat_id, text=get_label("شماره دفترخانه", i=i))
+            label = get_label("شماره دفترخانه", i=i)
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 16:
             i = data["فروشنده_index"]
             data[f"فروشنده {i} دفترخانه"] = text
             data["step"] = 17
-            context.bot.send_message(chat_id=chat_id, text=f"تعداد خریداران فروشنده {i} را وارد کنید:")
+            label = f"تعداد خریداران فروشنده {i} را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 17:
             if not text.isdigit():
-                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.", reply_markup=main_keyboard())
                 return
             i = data["فروشنده_index"]
             data[f"تعداد خریداران {i}"] = int(text)
             data[f"خریدار_index_{i}"] = 1
             data["step"] = 18
-            context.bot.send_message(chat_id=chat_id, text=f"نام خریدار ۱ از فروشنده {i} را وارد کنید:")
+            label = f"نام خریدار ۱ از فروشنده {i} را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 18:
@@ -1283,7 +1475,9 @@ def handle_message(update: Update, context: CallbackContext):
             k = data[f"خریدار_index_{i}"]
             data[f"خریدار {i}-{k} نام"] = text
             data["step"] = 19
-            context.bot.send_message(chat_id=chat_id, text=f"نام پدر خریدار {k} از فروشنده {i}:")
+            label = f"نام پدر خریدار {k} از فروشنده {i}:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 19:
@@ -1291,39 +1485,45 @@ def handle_message(update: Update, context: CallbackContext):
             k = data[f"خریدار_index_{i}"]
             data[f"خریدار {i}-{k} پدر"] = text
             data["step"] = 20
-            context.bot.send_message(chat_id=chat_id, text=f"تاریخ تولد خریدار {k} از فروشنده {i}:")
+            label = f"تاریخ تولد خریدار {k} از فروشنده {i}:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 20:
             i = data["فروشنده_index"]
             k = data[f"خریدار_index_{i}"]
             if not is_valid_persian_date(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. نمونه: ۱۴۰۴/۰۵/۱۵")
+                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. نمونه: ۱۴۰۴/۰۵/۱۵", reply_markup=main_keyboard())
                 return
             data[f"خریدار {i}-{k} تولد"] = text
             data["step"] = 21
-            context.bot.send_message(chat_id=chat_id, text=get_label("کد ملی خریدار", i=i, k=k))
+            label = get_label("کد ملی خریدار", i=i, k=k)
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-
 
         if step == 21:
             i = data["فروشنده_index"]
             k = data[f"خریدار_index_{i}"]
             if not is_valid_persian_national_id(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی باید دقیقاً ۱۰ رقم فارسی باشد.")
+                context.bot.send_message(chat_id=chat_id, text="❗️کد ملی باید دقیقاً ۱۰ رقم فارسی باشد.", reply_markup=main_keyboard())
                 return
             data[f"خریدار {i}-{k} کد ملی"] = text
             data["step"] = 22
-            context.bot.send_message(chat_id=chat_id, text=get_label("آدرس خریدار", i=i, k=k))
+            label = get_label("آدرس خریدار", i=i, k=k)
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
-
 
         if step == 22:
             i = data["فروشنده_index"]
             k = data[f"خریدار_index_{i}"]
             data[f"خریدار {i}-{k} آدرس"] = text
             data["step"] = 23
-            context.bot.send_message(chat_id=chat_id, text=f"میزان سهم‌الشرکه منتقل‌شده به خریدار {k} از فروشنده {i} (ریال):")
+            label = f"میزان سهم‌الشرکه منتقل‌شده به خریدار {k} از فروشنده {i} (ریال):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 23:
@@ -1333,17 +1533,23 @@ def handle_message(update: Update, context: CallbackContext):
             if k < data[f"تعداد خریداران {i}"]:
                 data[f"خریدار_index_{i}"] = k + 1
                 data["step"] = 18
-                context.bot.send_message(chat_id=chat_id, text=f"نام خریدار {k+1} از فروشنده {i} را وارد کنید:")
+                label = f"نام خریدار {k+1} از فروشنده {i} را وارد کنید:"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
             else:
                 if i < data["تعداد فروشندگان"]:
                     data["فروشنده_index"] = i + 1
                     data["step"] = 11
-                    context.bot.send_message(chat_id=chat_id, text=f"نام فروشنده شماره {i+1} را وارد کنید:")
+                    label = f"نام فروشنده شماره {i+1} را وارد کنید:"
+                    remember_last_question(context, label)
+                    context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                     return
                 else:
                     data["step"] = 24
-                    context.bot.send_message(chat_id=chat_id, text="نام وکیل (ثبت‌کننده صورتجلسه) را وارد کنید:")
+                    label = "نام وکیل (ثبت‌کننده صورتجلسه) را وارد کنید:"
+                    remember_last_question(context, label)
+                    context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                     return
 
         if step == 24:
@@ -1360,102 +1566,124 @@ def handle_message(update: Update, context: CallbackContext):
         if step == 1:
             data["نام شرکت"] = text
             data["step"] = 2
-            context.bot.send_message(chat_id=chat_id, text="شماره ثبت شرکت را وارد کنید:")
+            label = "شماره ثبت شرکت را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 2:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["شماره ثبت"] = text
             data["step"] = 3
-            context.bot.send_message(chat_id=chat_id, text="شناسه ملی شرکت را وارد کنید:")
+            label = "شناسه ملی شرکت را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 3:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["شناسه ملی"] = text
             data["step"] = 4
-            context.bot.send_message(chat_id=chat_id, text="سرمایه شرکت به ریال را وارد کنید (عدد فارسی):")
+            label = "سرمایه شرکت به ریال را وارد کنید (عدد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 4:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             data["سرمایه"] = text
             data["step"] = 5
-            context.bot.send_message(chat_id=chat_id, text="تاریخ صورتجلسه را وارد کنید (مثلاً: ۱۴۰۴/۰۵/۱۵):")
+            label = "تاریخ صورتجلسه را وارد کنید (مثلاً: ۱۴۰۴/۰۵/۱۵):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 5:
             if text.count('/') != 2:
-                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.")
+                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.", reply_markup=main_keyboard())
                 return
             data["تاریخ"] = text
             data["step"] = 6
-            context.bot.send_message(chat_id=chat_id, text="ساعت جلسه را وارد کنید :")
+            label = "ساعت جلسه را وارد کنید :"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 6:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
             saat = int(fa_to_en_number(text))
             if saat < 8 or saat > 17:
-                context.bot.send_message(chat_id=chat_id, text="❗️ساعت جلسه باید بین ۸ تا ۱۷ باشد.")
+                context.bot.send_message(chat_id=chat_id, text="❗️ساعت جلسه باید بین ۸ تا ۱۷ باشد.", reply_markup=main_keyboard())
                 return
             data["ساعت"] = text
             data["step"] = 7
-            context.bot.send_message(chat_id=chat_id, text="مدیر عامل (رئیس جلسه) را وارد کنید:")
+            label = "مدیر عامل (رئیس جلسه) را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 7:
             data["مدیر عامل"] = text
             data["step"] = 8
-            context.bot.send_message(chat_id=chat_id, text="ناظر اول جلسه را وارد کنید (از بین اعضای هیئت مدیره):")
+            label = "ناظر اول جلسه را وارد کنید (از بین اعضای هیئت مدیره):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 8:
             if text == data["مدیر عامل"]:
-                context.bot.send_message(chat_id=chat_id, text="❗️ناظر اول نمی‌تواند با مدیر عامل یکی باشد. لطفاً شخص دیگری را انتخاب کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️ناظر اول نمی‌تواند با مدیر عامل یکی باشد. لطفاً شخص دیگری را انتخاب کنید.", reply_markup=main_keyboard())
                 return
             data["نایب رییس"] = text
             data["step"] = 9
-            context.bot.send_message(chat_id=chat_id, text="ناظر دوم جلسه را وارد کنید (از بین اعضای هیئت مدیره):")
+            label = "ناظر دوم جلسه را وارد کنید (از بین اعضای هیئت مدیره):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 9:
             if text == data["مدیر عامل"] or text == data["نایب رییس"]:
-                context.bot.send_message(chat_id=chat_id, text="❗️ناظر دوم نمی‌تواند با مدیر عامل یا ناظر اول یکی باشد. لطفاً شخص دیگری را انتخاب کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️ناظر دوم نمی‌تواند با مدیر عامل یا ناظر اول یکی باشد. لطفاً شخص دیگری را انتخاب کنید.", reply_markup=main_keyboard())
                 return
             data["رییس"] = text
             data["step"] = 10
-            context.bot.send_message(chat_id=chat_id, text="منشی جلسه را وارد کنید:")
+            label = "منشی جلسه را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 10:
             data["منشی"] = text
             data["step"] = 11
-            context.bot.send_message(chat_id=chat_id, text="تعداد فروشندگان را وارد کنید:")
+            label = "تعداد فروشندگان را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         
         # شروع دریافت فروشندگان
         if step == 11:
             if not text.isdigit():
-                context.bot.send_message(chat_id=chat_id, text="❗️تعداد فروشندگان را با عدد وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️تعداد فروشندگان را با عدد وارد کنید.", reply_markup=main_keyboard())
                 return
             count = int(text)
             if count < 1:
-                context.bot.send_message(chat_id=chat_id, text="❗️حداقل یک فروشنده باید وجود داشته باشد.")
+                context.bot.send_message(chat_id=chat_id, text="❗️حداقل یک فروشنده باید وجود داشته باشد.", reply_markup=main_keyboard())
                 return
             data["تعداد فروشندگان"] = count
             data["فروشنده_index"] = 1
             data["step"] = 12
-            context.bot.send_message(chat_id=chat_id, text="نام فروشنده شماره ۱ را وارد کنید:")
+            label = "نام فروشنده شماره ۱ را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step >= 12 and data.get("فروشنده_index", 0) <= data.get("تعداد فروشندگان", 0):
@@ -1464,15 +1692,21 @@ def handle_message(update: Update, context: CallbackContext):
 
             if f"{prefix} نام" not in data:
                 data[f"{prefix} نام"] = text
-                context.bot.send_message(chat_id=chat_id, text=f"کد ملی {prefix} را وارد کنید:")
+                label = f"کد ملی {prefix} را وارد کنید:"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
             if f"{prefix} کد ملی" not in data:
                 data[f"{prefix} کد ملی"] = text
-                context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام منتقل‌شده توسط {prefix} را وارد کنید:")
+                label = f"تعداد سهام منتقل‌شده توسط {prefix} را وارد کنید:"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
             elif f"{prefix} تعداد" not in data:
                 data[f"{prefix} تعداد"] = text
-                context.bot.send_message(chat_id=chat_id, text="تعداد خریداران برای این فروشنده را وارد کنید:")
+                label = "تعداد خریداران برای این فروشنده را وارد کنید:"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 data["step"] = 13
                 return
 
@@ -1480,17 +1714,19 @@ def handle_message(update: Update, context: CallbackContext):
 
         if step == 13:
             if not text.isdigit():
-                context.bot.send_message(chat_id=chat_id, text="❗️تعداد خریداران را با عدد وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️تعداد خریداران را با عدد وارد کنید.", reply_markup=main_keyboard())
                 return
             count = int(text)
             if count < 1:
-                context.bot.send_message(chat_id=chat_id, text="❗️حداقل یک خریدار لازم است.")
+                context.bot.send_message(chat_id=chat_id, text="❗️حداقل یک خریدار لازم است.", reply_markup=main_keyboard())
                 return
             i = data["فروشنده_index"]
             data[f"تعداد خریداران {i}"] = count
             data[f"خریدار_index_{i}"] = 1
             data["step"] = 14
-            context.bot.send_message(chat_id=chat_id, text=f"نام خریدار شماره ۱ از فروشنده {i} را وارد کنید:")
+            label = f"نام خریدار شماره ۱ از فروشنده {i} را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
         if step == 14:
@@ -1499,40 +1735,52 @@ def handle_message(update: Update, context: CallbackContext):
         
             if f"خریدار {i}-{k} نام" not in data:
                 data[f"خریدار {i}-{k} نام"] = text
-                context.bot.send_message(chat_id=chat_id, text=f"کد ملی خریدار {k} از فروشنده {i} را وارد کنید:")
+                label = f"کد ملی خریدار {k} از فروشنده {i} را وارد کنید:"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
             elif f"خریدار {i}-{k} کد ملی" not in data:
                 data[f"خریدار {i}-{k} کد ملی"] = text
-                context.bot.send_message(chat_id=chat_id, text=f"آدرس خریدار {k} از فروشنده {i} را وارد کنید:")
+                label = f"آدرس خریدار {k} از فروشنده {i} را وارد کنید:"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
             elif f"خریدار {i}-{k} آدرس" not in data:
                 data[f"خریدار {i}-{k} آدرس"] = text
                 total = data[f"تعداد خریداران {i}"]
                 if k < total:
                     data[f"خریدار_index_{i}"] += 1
-                    context.bot.send_message(chat_id=chat_id, text=f"نام خریدار شماره {k+1} از فروشنده {i} را وارد کنید:")
+                    label = f"نام خریدار شماره {k+1} از فروشنده {i} را وارد کنید:"
+                    remember_last_question(context, label)
+                    context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                     return
                 else:
                     # همه خریداران ثبت شدن
                     if i < data["تعداد فروشندگان"]:
                         data["فروشنده_index"] += 1
                         data["step"] = 12  # برمی‌گردیم به مرحله نام فروشنده جدید
-                        context.bot.send_message(chat_id=chat_id, text=f"نام فروشنده شماره {i+1} را وارد کنید:")
+                        label = f"نام فروشنده شماره {i+1} را وارد کنید:"
+                        remember_last_question(context, label)
+                        context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                     else:
                         data["step"] = 15  # مرحله بعد از خریداران (مثلاً سهامداران قبل)
-                        context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران قبل از نقل و انتقال را وارد کنید:")
+                        label = "تعداد سهامداران قبل از نقل و انتقال را وارد کنید:"
+                        remember_last_question(context, label)
+                        context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                     return
                 
             # مرحله دریافت سهامداران قبل از انتقال
         if step == 15:
             if not text.isdigit():
-                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.", reply_markup=main_keyboard())
                 return
             count = int(text)
             data["تعداد سهامداران قبل"] = count
             data["سهامدار_قبل_index"] = 1
             data["step"] = 16
-            context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار قبل شماره ۱ را وارد کنید:")
+            label = f"نام سهامدار قبل شماره ۱ را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
     
         if step == 16:
@@ -1540,28 +1788,36 @@ def handle_message(update: Update, context: CallbackContext):
             prefix = f"سهامدار قبل {i}"
             if f"{prefix} نام" not in data:
                 data[f"{prefix} نام"] = text
-                context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام {prefix} را وارد کنید:")
+                label = f"تعداد سهام {prefix} را وارد کنید:"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
             elif f"{prefix} تعداد" not in data:
                 data[f"{prefix} تعداد"] = text
                 if i < data["تعداد سهامداران قبل"]:
                     data["سهامدار_قبل_index"] += 1
-                    context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار قبل شماره {i+1} را وارد کنید:")
+                    label = f"نام سهامدار قبل شماره {i+1} را وارد کنید:"
+                    remember_last_question(context, label)
+                    context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 else:
                     data["step"] = 17
-                    context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران بعد از نقل و انتقال را وارد کنید:")
+                    label = "تعداد سهامداران بعد از نقل و انتقال را وارد کنید:"
+                    remember_last_question(context, label)
+                    context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
     
         # مرحله دریافت سهامداران بعد از انتقال
         if step == 17:
             if not text.isdigit():
-                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.", reply_markup=main_keyboard())
                 return
             count = int(text)
             data["تعداد سهامداران بعد"] = count
             data["سهامدار_بعد_index"] = 1
             data["step"] = 18
-            context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار بعد شماره ۱ را وارد کنید:")
+            label = f"نام سهامدار بعد شماره ۱ را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
     
         if step == 18:
@@ -1569,16 +1825,22 @@ def handle_message(update: Update, context: CallbackContext):
             prefix = f"سهامدار بعد {i}"
             if f"{prefix} نام" not in data:
                 data[f"{prefix} نام"] = text
-                context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام {prefix} را وارد کنید:")
+                label = f"تعداد سهام {prefix} را وارد کنید:"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
             elif f"{prefix} تعداد" not in data:
                 data[f"{prefix} تعداد"] = text
                 if i < data["تعداد سهامداران بعد"]:
                     data["سهامدار_بعد_index"] += 1
-                    context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار بعد شماره {i+1} را وارد کنید:")
+                    label = f"نام سهامدار بعد شماره {i+1} را وارد کنید:"
+                    remember_last_question(context, label)
+                    context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 else:
                     data["step"] = 19
-                    context.bot.send_message(chat_id=chat_id, text="نام وکیل (شخص ثبت‌کننده صورتجلسه) را وارد کنید:")
+                    label = "نام وکیل (شخص ثبت‌کننده صورتجلسه) را وارد کنید:"
+                    remember_last_question(context, label)
+                    context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
     
         # مرحله آخر: دریافت وکیل
@@ -1589,7 +1851,7 @@ def handle_message(update: Update, context: CallbackContext):
             return
     
         if step >= 20:
-            context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات قبلاً ثبت شده است. برای شروع مجدد /start را ارسال کنید.")
+            context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات قبلاً ثبت شده است. برای شروع مجدد /start را ارسال کنید.", reply_markup=main_keyboard())
             return
 
  
@@ -1600,11 +1862,12 @@ def handle_message(update: Update, context: CallbackContext):
         data["step"] = 2
         next_field = fields[2]
         label = get_label(next_field)
-        context.bot.send_message(chat_id=chat_id, text=label)
+        remember_last_question(context, label)
+        context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
         return
 
     if step == 0:
-        context.bot.send_message(chat_id=chat_id, text="لطفاً نوع شرکت را از گزینه‌های ارائه شده انتخاب کنید.")
+        context.bot.send_message(chat_id=chat_id, text="لطفاً نوع شرکت را از گزینه‌های ارائه شده انتخاب کنید.", reply_markup=main_keyboard())
         return
 
     if 2 <= step < len(fields):
@@ -1612,12 +1875,12 @@ def handle_message(update: Update, context: CallbackContext):
 
         if field == "تاریخ":
             if text.count('/') != 2:
-                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. لطفاً به صورت ۱۴۰۴/۰۴/۰۷ وارد کنید (با دو /).")
+                context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. لطفاً به صورت ۱۴۰۴/۰۴/۰۷ وارد کنید (با دو /).", reply_markup=main_keyboard())
                 return
 
         if field in persian_number_fields:
             if not is_persian_number(text):
-                context.bot.send_message(chat_id=chat_id, text=f"لطفاً مقدار '{field}' را فقط با اعداد فارسی وارد کنید.")
+                context.bot.send_message(chat_id=chat_id, text=f"لطفاً مقدار '{field}' را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                 return
 
         data[field] = text
@@ -1625,16 +1888,17 @@ def handle_message(update: Update, context: CallbackContext):
         if data["step"] < len(fields):
             next_field = fields[data["step"]]
             label = get_label(next_field)
-            context.bot.send_message(chat_id=chat_id, text=label)
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
         else:
             send_summary(chat_id, context)
         return
 
     context.bot.send_message(
         chat_id=chat_id,
-        text="دستور نامعتبر یا مرحله ناشناخته است. برای بازگشت از دکمه «⬅️ بازگشت» استفاده کنید یا /start بزنید."
+        text="دستور نامعتبر یا مرحله ناشناخته است. برای بازگشت از دکمه «⬅️ بازگشت» استفاده کنید یا /start بزنید.",
+        reply_markup=main_keyboard()
     )
-    
 
 def handle_back(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
