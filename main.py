@@ -1,4 +1,3 @@
-
 import telegram
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -40,6 +39,8 @@ AI_RESUME   = "AI_RESUME"   # کال‌بک دکمه‌ی بازگشت از AI
 AI_ASK_TEXT = "❓ سؤال دارم"
 
 GROQ_MODEL_QUALITY = "llama-3.3-70b-versatile" # کیفیت بالاتر
+GROQ_MODEL = GROQ_MODEL_QUALITY
+
 groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 def ask_groq(user_text: str, system_prompt: str = None, max_tokens: int = 1024) -> str:
@@ -68,6 +69,12 @@ def main_keyboard():
         resize_keyboard=True,
         one_time_keyboard=False
     )
+
+def base_reply_keyboard():
+    return ReplyKeyboardMarkup(
+        [["🔙 بازگشت به ادامه مراحل"]],
+        resize_keyboard=True
+    )
     
 fields = [
     "نوع شرکت", "نام شرکت", "شماره ثبت", "شناسه ملی", "سرمایه", "تاریخ", "ساعت",
@@ -88,15 +95,19 @@ def fa_to_en_number(text):
 
 DOCX_IMPORTED = False
 Document = Pt = qn = None
+
 def _lazy_import_docx():
-    global DOCX_IMPORTED, Document, Pt, qn
+    global DOCX_IMPORTED, Document, Pt, qn, WD_PARAGRAPH_ALIGNMENT
     if DOCX_IMPORTED:
         return
     from docx import Document as _Document
     from docx.shared import Pt as _Pt
     from docx.oxml.ns import qn as _qn
-    Document, Pt, qn = _Document, _Pt, _qn
+    from docx.enum.text import WD_PARAGRAPH_ALIGNMENT as _WD
+    Document, Pt, qn, WD_PARAGRAPH_ALIGNMENT = _Document, _Pt, _qn, _WD
     DOCX_IMPORTED = True
+
+    
 def is_valid_persian_national_id(s: str) -> bool:
     """بررسی کند که ورودی دقیقاً ۱۰ رقم فارسی باشد"""
     if not s or len(s) != 10:
@@ -118,9 +129,11 @@ def enter_ai_mode_reply(update, context):
     if (update.message and (update.message.text or "").strip() == AI_ASK_TEXT):
         context.user_data["ai_mode"] = True
         update.message.reply_text(
-            "🧠 حالت «پرسش هوشمند» فعال شد. سؤال خود را بنویسید.",
+            "شما در حالت پرسش از هوش ما هستید 🧠.\n"
+            "سؤال خود را بپرسید یا برای بازگشت دکمه زیر را بزنید.",
             reply_markup=base_reply_keyboard()
         )
+
 
 def handle_ai_text(update, context):
     if not context.user_data.get("ai_mode"):
@@ -322,6 +335,7 @@ def handle_message(update: Update, context: CallbackContext):
 
     # --- گارد حالت AI: ابتدای تابع ---
     if context.user_data.get("ai_mode"):
+        handle_ai_text(update, context)
         # (اختیاری) اگر می‌خواهی «بازگشت» در حالت AI هم خروجی باشد:
         if text == BACK_BTN:
             context.user_data["ai_mode"] = False
@@ -331,6 +345,12 @@ def handle_message(update: Update, context: CallbackContext):
             else:
                 send_topic_menu(update, context)
             return
+
+        if update.message.text == "🔙 بازگشت به ادامه مراحل":
+            context.user_data["ai_mode"] = False
+            resume_from_ai(update, context)
+            return
+
         return  # وقتی در AI هستیم، هندلر مراحل پاسخ را نگیرد
         
     # اگر کاربر دکمه بازگشت زد
@@ -3662,15 +3682,6 @@ dispatcher.add_handler(
     group=0
 )
 
-# 2) متن‌ها در حالت AI
-#   - داخل handle_ai_text همین منطق را رعایت کن:
-#       if not context.user_data.get("ai_mode"): return
-#       ... پاسخ را بفرست ...
-#       raise DispatcherHandlerStop()
-dispatcher.add_handler(
-    MessageHandler(Filters.text & ~Filters.command, handle_ai_text),
-    group=0
-)
 
 # 3) دکمه‌ی اینلاین «بازگشت از AI»
 dispatcher.add_handler(
