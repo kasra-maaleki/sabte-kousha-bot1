@@ -11,6 +11,7 @@ from collections import defaultdict
 # from docx.oxml.ns import qn  # moved to lazy import
 # from docx.enum.text import WD_PARAGRAPH_ALIGNMENT  # moved to lazy import
 import os
+import re
 import uuid
 from groq import Groq
 TOKEN = os.getenv("BOT_TOKEN")
