@@ -47,7 +47,11 @@ def ask_groq(user_text: str, system_prompt: str = None, max_tokens: int = 1024) 
 
 # تابع ساخت کیبورد اصلی که فقط دکمه بازگشت داره
 def main_keyboard():
-    return ReplyKeyboardMarkup([[KeyboardButton(BACK_BTN)]], resize_keyboard=True)
+    return ReplyKeyboardMarkup(
+        [[KeyboardButton(AI_ASK_TEXT), KeyboardButton(BACK_BTN)]],
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
     
 fields = [
     "نوع شرکت", "نام شرکت", "شماره ثبت", "شناسه ملی", "سرمایه", "تاریخ", "ساعت",
