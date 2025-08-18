@@ -3644,6 +3644,9 @@ def webhook():
     dispatcher.process_update(update)
     return 'ok'
 # updater = Updater(...)  # disabled for webhook mode
+
+dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
+dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
 # 1) ورود به AI با دکمه‌ی پایینی
 
 dispatcher.add_handler(
@@ -3660,8 +3663,6 @@ dispatcher.add_handler(
 # 3) دکمه‌ی اینلاین بازگشت از AI
 dispatcher.add_handler(CallbackQueryHandler(resume_from_ai, pattern=f"^{AI_RESUME}$"),)
 
-dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
-dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
 dispatcher.add_handler(CommandHandler("ai", cmd_ai))
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
