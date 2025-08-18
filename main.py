@@ -3646,27 +3646,45 @@ def webhook():
 # updater = Updater(...)  # disabled for webhook mode
 
 dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
-dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
-# 1) ورود به AI با دکمه‌ی پایینی
 
+# ===== گروه 0: مربوط به AI =====
+# 1) ورود به AI با دکمه‌ی پایینی (متن برابر با AI_ASK_TEXT)
 dispatcher.add_handler(
-    MessageHandler(Filters.text & Filters.regex(f"^{re.escape(AI_ASK_TEXT)}$"), enter_ai_mode_reply),
+    MessageHandler(
+        Filters.text & Filters.regex(f"^{re.escape(AI_ASK_TEXT)}$"),
+        enter_ai_mode_reply
+    ),
     group=0
 )
 
 # 2) متن‌ها در حالت AI
+#   - داخل handle_ai_text همین منطق را رعایت کن:
+#       if not context.user_data.get("ai_mode"): return
+#       ... پاسخ را بفرست ...
+#       raise DispatcherHandlerStop()
 dispatcher.add_handler(
     MessageHandler(Filters.text & ~Filters.command, handle_ai_text),
     group=0
 )
 
-# 3) دکمه‌ی اینلاین بازگشت از AI
-dispatcher.add_handler(CallbackQueryHandler(resume_from_ai, pattern=f"^{AI_RESUME}$"),)
+# 3) دکمه‌ی اینلاین «بازگشت از AI»
+dispatcher.add_handler(
+    CallbackQueryHandler(resume_from_ai, pattern=f"^{AI_RESUME}$"),
+    group=0
+)
 
-dispatcher.add_handler(CommandHandler("ai", cmd_ai))
-dispatcher.add_handler(CommandHandler('start', start))
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-dispatcher.add_handler(CallbackQueryHandler(button_handler))
+# ===== گروه 1: هندلرهای عمومی =====
+dispatcher.add_handler(CommandHandler("ai", cmd_ai), group=1)
+dispatcher.add_handler(CommandHandler("start", start), group=1)
+
+# دکمه‌های اینلاین عمومی (غیر از بازگشت از AI)
+dispatcher.add_handler(CallbackQueryHandler(button_handler), group=1)
+
+# در انتها، هندلر متن عمومی
+dispatcher.add_handler(
+    MessageHandler(Filters.text & ~Filters.command, handle_message),
+    group=1
+)
 
 if __name__ == "__main__":
     import os
