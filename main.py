@@ -1,3 +1,4 @@
+
 import telegram
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -5,15 +6,16 @@ from telegram import ReplyKeyboardMarkup, KeyboardButton
 from telegram import ChatAction
 from flask import Flask, request
 from collections import defaultdict
-from docx import Document
-from docx.shared import Pt
-from docx.oxml.ns import qn
-from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+# from docx import Document  # moved to lazy import
+# from docx.shared import Pt  # moved to lazy import
+# from docx.oxml.ns import qn  # moved to lazy import
+# from docx.enum.text import WD_PARAGRAPH_ALIGNMENT  # moved to lazy import
 import os
 import uuid
 from groq import Groq
-
-TOKEN = "7483081974:AAGRXi-NxDAgwYF-xpdhqsQmaGbw8-DipXY"
+TOKEN = os.getenv("BOT_TOKEN")
+if not TOKEN:
+    raise RuntimeError("BOT_TOKEN environment variable is not set")
 bot = telegram.Bot(token=TOKEN)
 
 app = Flask(__name__)
@@ -84,6 +86,7 @@ def has_min_digits_fa(s: str, n: int = 10) -> bool:
     return len(digits) >= n
 
 def generate_word_file(text: str, filepath: str = None):
+    _lazy_import_docx()
     doc = Document()
 
     # تنظیم فونت B Nazanin اگر نصب باشد
@@ -3101,6 +3104,19 @@ def send_summary(chat_id, context):
             return text.translate(table)
 
         from collections import defaultdict
+import re
+from telegram.ext import Dispatcher
+
+DOCX_IMPORTED = False
+def _lazy_import_docx():
+    global DOCX_IMPORTED, Document, Pt, qn
+    if DOCX_IMPORTED:
+        return
+    from docx import Document
+    from docx.shared import Pt
+    from docx.oxml.ns import qn
+    DOCX_IMPORTED = True
+
 
         foroshandeha_tajmi = defaultdict(list)
 
@@ -3553,10 +3569,9 @@ def webhook():
     update = telegram.Update.de_json(request.get_json(force=True), bot)
     dispatcher.process_update(update)
     return 'ok'
-
-updater = Updater(token=TOKEN, use_context=True)
-dispatcher = updater.dispatcher
-
+# updater = Updater(...)  # disabled for webhook mode
+dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
+dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
 dispatcher.add_handler(CommandHandler("ai", cmd_ai))
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
@@ -3564,3 +3579,15 @@ dispatcher.add_handler(CallbackQueryHandler(button_handler))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+
+
+@app.route('/_health', methods=['GET'])
+def health():
+    return 'ok', 200
+
+
+def remember_last_question(context, label: str):
+    try:
+        context.user_data["last_question"] = label
+    except Exception:
+        pass
