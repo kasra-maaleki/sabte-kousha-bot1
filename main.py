@@ -26,6 +26,11 @@ bot = telegram.Bot(token=TOKEN)
 
 app = Flask(__name__)
 
+@app.route("/_health", methods=["GET"])
+def _health():
+    return "ok", 200
+
+
 user_data = {}
 
 # متن دکمه  ها
@@ -3691,10 +3696,6 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
 
-
-@app.route('/_health', methods=['GET'])
-def health():
-    return 'ok', 200
 
 
 def remember_last_question(context, label: str):
