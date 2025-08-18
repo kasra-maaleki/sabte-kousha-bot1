@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: sabte-kousha-bot
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /_health
+    # Optional override (اگر خواستی به‌جای CMD در Dockerfile، اینجا تعیین کنی):
+    # command: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 120 main:app
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
