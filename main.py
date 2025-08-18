@@ -3707,15 +3707,18 @@ dispatcher.add_handler(
     group=1
 )
 
+def remember_last_question(context, label: str):
+    """
+    ذخیره‌ی آخرین برچسب سؤال برای اینکه در حالت AI
+    بتوانیم بعد از خروج دوباره به همان مرحله برگردیم.
+    """
+    try:
+        context.user_data["last_question_text"] = label
+    except Exception as e:
+        print("remember_last_question error:", e)
+
 if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
 
-
-
-def remember_last_question(context, label: str):
-    try:
-        context.user_data["last_question_text"] = label
-    except Exception:
-        pass
