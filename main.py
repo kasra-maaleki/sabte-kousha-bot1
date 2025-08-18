@@ -14,6 +14,11 @@ import os
 import re
 import uuid
 from groq import Groq
+import re
+from collections import defaultdict
+from telegram.ext import Dispatcher
+
+
 TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
     raise RuntimeError("BOT_TOKEN environment variable is not set")
@@ -69,10 +74,24 @@ persian_number_fields = ["شماره ثبت", "شناسه ملی", "سرمایه
 def is_persian_number(text):
     return all('۰' <= ch <= '۹' or ch.isspace() for ch in text)
 
+
+# تبدیل اعداد فارسی به انگلیسی
 def fa_to_en_number(text):
     table = str.maketrans('۰۱۲۳۴۵۶۷۸۹', '0123456789')
     return text.translate(table)
 
+
+DOCX_IMPORTED = False
+Document = Pt = qn = None
+def _lazy_import_docx():
+    global DOCX_IMPORTED, Document, Pt, qn
+    if DOCX_IMPORTED:
+        return
+    from docx import Document as _Document
+    from docx.shared import Pt as _Pt
+    from docx.oxml.ns import qn as _qn
+    Document, Pt, qn = _Document, _Pt, _qn
+    DOCX_IMPORTED = True
 def is_valid_persian_national_id(s: str) -> bool:
     """بررسی کند که ورودی دقیقاً ۱۰ رقم فارسی باشد"""
     if not s or len(s) != 10:
@@ -3172,26 +3191,6 @@ def send_summary(chat_id, context):
     ـ  {data['منشی']}                         به سمت منشی جلسه انتخاب شدند
 
     ب: دستور جلسه اتخاذ تصمیم در خصوص نقل و انتقال سهام، مجمع موافقت و تصویب نمود که:"""
-
-        # تبدیل اعداد فارسی به انگلیسی
-        def fa_to_en_number(text):
-            table = str.maketrans('۰۱۲۳۴۵۶۷۸۹', '0123456789')
-            return text.translate(table)
-
-        from collections import defaultdict
-import re
-from telegram.ext import Dispatcher
-
-DOCX_IMPORTED = False
-def _lazy_import_docx():
-    global DOCX_IMPORTED, Document, Pt, qn
-    if DOCX_IMPORTED:
-        return
-    from docx import Document
-    from docx.shared import Pt
-    from docx.oxml.ns import qn
-    DOCX_IMPORTED = True
-
 
         foroshandeha_tajmi = defaultdict(list)
 
