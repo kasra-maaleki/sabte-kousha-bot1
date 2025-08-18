@@ -17,4 +17,4 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 10000
 
 # مهم: روی Render باید به $PORT بایند شوی. gunicorn خودش از $PORT استفاده می‌کند.
-CMD bash -lc 'uvicorn main:app --host 0.0.0.0 --port $PORT'
+CMD ["python", "main.py"]
