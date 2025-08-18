@@ -22,8 +22,11 @@ app = Flask(__name__)
 
 user_data = {}
 
-# متن دکمه بازگشت
+# متن دکمه  ها
+
 BACK_BTN = "⬅️ بازگشت"
+AI_RESUME   = "AI_RESUME"   # کال‌بک دکمه‌ی بازگشت از AI
+AI_ASK_TEXT = "❓ سؤال دارم"
 
 GROQ_MODEL_QUALITY = "llama-3.3-70b-versatile" # کیفیت بالاتر
 groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
@@ -84,6 +87,72 @@ def has_min_digits_fa(s: str, n: int = 10) -> bool:
     en = fa_to_en_number(s or "")
     digits = "".join(ch for ch in en if ch.isdigit())
     return len(digits) >= n
+
+def enter_ai_mode_reply(update, context):
+    # وقتی کاربر روی دکمهٔ «❓ سؤال دارم» زد
+    if (update.message and (update.message.text or "").strip() == AI_ASK_TEXT):
+        context.user_data["ai_mode"] = True
+        update.message.reply_text(
+            "🧠 حالت «پرسش هوشمند» فعال شد. سؤال خود را بنویسید.",
+            reply_markup=base_reply_keyboard()
+        )
+
+def handle_ai_text(update, context):
+    if not context.user_data.get("ai_mode"):
+        return  # اجازه بده هندلرهای مراحل کار خودشان را بکنند
+
+    text = (update.message.text or "").strip()
+    if not text or text == AI_ASK_TEXT or text == BACK_BTN:
+        return  # پیام خالی یا دکمه‌ها را نادیده بگیر
+
+    chat_id = update.effective_chat.id
+    context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+
+    try:
+        answer = ask_groq(text, max_tokens=900)  # همان تابعی که قبلاً ساختیم
+
+        # پاسخ را (در صورت طولانی بودن) تکه‌تکه بفرست
+        chunks = [answer[i:i+3500] for i in range(0, len(answer), 3500)]
+        for idx, ch in enumerate(chunks):
+            if idx == len(chunks) - 1:
+                # فقط زیر «آخرین بخش پاسخ»، دکمهٔ بازگشت به ادامه مراحل را بگذار
+                update.message.reply_text(
+                    ch,
+                    reply_markup=InlineKeyboardMarkup(
+                        [[InlineKeyboardButton("↩️ برگشت به ادامه تنظیم صورتجلسه", callback_data=AI_RESUME)]]
+                    )
+                )
+            else:
+                update.message.reply_text(ch)
+
+    except Exception as e:
+        update.message.reply_text("❌ خطا در دریافت پاسخ هوشمند. کمی بعد دوباره تلاش کنید.")
+        print("GROQ ERROR:", e)
+
+def resume_from_ai(update, context):
+    # کال‌بک دکمهٔ «↩️ برگشت به ادامه تنظیم صورتجلسه»
+    query = update.callback_query
+    query.answer()
+
+    context.user_data["ai_mode"] = False  # خروج از AI
+
+    last_q = context.user_data.get("last_question_text")
+    # پاک کردن دکمهٔ اینلاین از پیام پاسخ (اختیاری)
+    try:
+        query.edit_message_reply_markup(None)
+    except:
+        pass
+
+    if last_q:
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=last_q,
+            reply_markup=base_reply_keyboard()
+        )
+    else:
+        # اگر قبلاً سؤالی ذخیره نشده بود، به منوی موضوعات برگرد
+        send_topic_menu(update, context)  # تابع خودت
+
 
 def generate_word_file(text: str, filepath: str = None):
     _lazy_import_docx()
@@ -226,18 +295,23 @@ def handle_message(update: Update, context: CallbackContext):
     text = (update.message.text or "").strip()
     user_data.setdefault(chat_id, {"step": 0})
 
-    # --- گارد حالت AI (ابتدای تابع و با تورفتگی درست) ---
+    # --- گارد حالت AI: ابتدای تابع ---
     if context.user_data.get("ai_mode"):
+        # (اختیاری) اگر می‌خواهی «بازگشت» در حالت AI هم خروجی باشد:
+        if text == BACK_BTN:
+            context.user_data["ai_mode"] = False
+            last_q = context.user_data.get("last_question_text")
+            if last_q:
+                context.bot.send_message(chat_id=chat_id, text=last_q, reply_markup=base_reply_keyboard())
+            else:
+                send_topic_menu(update, context)
+            return
         return  # وقتی در AI هستیم، هندلر مراحل پاسخ را نگیرد
-
+        
     # اگر کاربر دکمه بازگشت زد
     if text == BACK_BTN:
         handle_back(update, context)
         return
-
-    # setdefault بالا کافی‌ست؛ این بلاک تکراری را لازم نیست نگه داری
-    # if chat_id not in user_data:
-    #     user_data[chat_id] = {"step": 0}
 
     data = user_data[chat_id]
     step = data.get("step", 0)
@@ -3570,6 +3644,22 @@ def webhook():
     dispatcher.process_update(update)
     return 'ok'
 # updater = Updater(...)  # disabled for webhook mode
+# 1) ورود به AI با دکمه‌ی پایینی
+
+dispatcher.add_handler(
+    MessageHandler(Filters.text & Filters.regex(f"^{re.escape(AI_ASK_TEXT)}$"), enter_ai_mode_reply),
+    group=0
+)
+
+# 2) متن‌ها در حالت AI
+dispatcher.add_handler(
+    MessageHandler(Filters.text & ~Filters.command, handle_ai_text),
+    group=0
+)
+
+# 3) دکمه‌ی اینلاین بازگشت از AI
+dispatcher.add_handler(CallbackQueryHandler(resume_from_ai, pattern=f"^{AI_RESUME}$"),)
+
 dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
 dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
 dispatcher.add_handler(CommandHandler("ai", cmd_ai))
