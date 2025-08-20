@@ -221,10 +221,6 @@ def resume_from_ai(update, context):
         # اگر آخرین سوالی ذخیره نشده بود، برگرد به منوی موضوع
         send_topic_menu(chat_id, context)
 
-def on_ai_resume_cb(update, context):
-    if update.callback_query and update.callback_query.data == AI_RESUME:
-        resume_from_ai(update, context)
-
 
 def generate_word_file(text: str, filepath: str = None):
     _lazy_import_docx()
@@ -3707,35 +3703,17 @@ def webhook():
 dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
 
 # ===== گروه 0: مربوط به AI =====
-# 1) ورود به AI با دکمه‌ی پایینی (متن برابر با AI_ASK_TEXT)
-dispatcher.add_handler(
-    MessageHandler(
-        Filters.text & Filters.regex(f"^{re.escape(AI_ASK_TEXT)}$"),
-        enter_ai_mode_reply
-    ),
-    group=0
-)
+dispatcher.add_handler(MessageHandler(Filters.text & Filters.regex(f"^{re.escape(AI_ASK_TEXT)}$"), enter_ai_mode_reply), group=0)
 
-
-# 3) دکمه‌ی اینلاین «بازگشت از AI»
-dispatcher.add_handler(CallbackQueryHandler(on_ai_resume_cb, pattern=f"^{AI_RESUME}$"))
-dispatcher.add_handler(
-    CallbackQueryHandler(resume_from_ai, pattern=f"^{AI_RESUME}$"),
-    group=0
-)
+# دکمه‌ی اینلاین «بازگشت از AI»
+dispatcher.add_handler(CallbackQueryHandler(resume_from_ai, pattern=f"^{AI_RESUME}$"), group=0)
 
 # ===== گروه 1: هندلرهای عمومی =====
 dispatcher.add_handler(CommandHandler("ai", cmd_ai), group=1)
 dispatcher.add_handler(CommandHandler("start", start), group=1)
-
-# دکمه‌های اینلاین عمومی (غیر از بازگشت از AI)
 dispatcher.add_handler(CallbackQueryHandler(button_handler), group=1)
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message), group=1)
 
-# در انتها، هندلر متن عمومی
-dispatcher.add_handler(
-    MessageHandler(Filters.text & ~Filters.command, handle_message),
-    group=1
-)
 
 def remember_last_question(context, label: str):
     """
