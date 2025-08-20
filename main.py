@@ -137,12 +137,14 @@ def enter_ai_mode_reply(update, context):
 
 def handle_ai_text(update, context):
     if not context.user_data.get("ai_mode"):
-        return  # اجازه بده هندلرهای مراحل کار خودشان را بکنند
+        return
 
     text = (update.message.text or "").strip()
-    if not text or text == AI_ASK_TEXT or text == BACK_BTN:
-        return  # پیام خالی یا دکمه‌ها را نادیده بگیر
 
+    if text in (AI_ASK_TEXT, BACK_BTN, "🔙 بازگشت به ادامه مراحل"):
+        resume_from_ai(update, context)
+        return
+        
     chat_id = update.effective_chat.id
     context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
 
@@ -218,6 +220,10 @@ def resume_from_ai(update, context):
     else:
         # اگر آخرین سوالی ذخیره نشده بود، برگرد به منوی موضوع
         send_topic_menu(chat_id, context)
+
+def on_ai_resume_cb(update, context):
+    if update.callback_query and update.callback_query.data == AI_RESUME:
+        resume_from_ai(update, context)
 
 
 def generate_word_file(text: str, filepath: str = None):
@@ -368,22 +374,12 @@ def handle_message(update: Update, context: CallbackContext):
         # --- گارد حالت AI: ابتدای تابع ---
         if context.user_data.get("ai_mode"):
             handle_ai_text(update, context)
-            # (اختیاری) اگر می‌خواهی «بازگشت» در حالت AI هم خروجی باشد:
-            if text == BACK_BTN:
-                context.user_data["ai_mode"] = False
-                last_q = context.user_data.get("last_question_text")
-                if last_q:
-                    context.bot.send_message(chat_id=chat_id, text=last_q, reply_markup=base_reply_keyboard())
-                else:
-                    send_topic_menu(update, context)
+        
+            # ✅ اگر وسط handle_ai_text از AI خارج شدیم، ادامه نده
+            if not context.user_data.get("ai_mode"):
                 return
-    
-            if update.message.text == "🔙 بازگشت به ادامه مراحل":
-                context.user_data["ai_mode"] = False
-                resume_from_ai(update, context)
-                return
-    
-            return  # وقتی در AI هستیم، هندلر مراحل پاسخ را نگیرد
+        
+            return
             
         # اگر کاربر دکمه بازگشت زد
         if text == BACK_BTN:
@@ -3722,6 +3718,7 @@ dispatcher.add_handler(
 
 
 # 3) دکمه‌ی اینلاین «بازگشت از AI»
+dispatcher.add_handler(CallbackQueryHandler(on_ai_resume_cb, pattern=f"^{AI_RESUME}$"))
 dispatcher.add_handler(
     CallbackQueryHandler(resume_from_ai, pattern=f"^{AI_RESUME}$"),
     group=0
