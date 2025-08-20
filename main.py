@@ -141,7 +141,11 @@ def handle_ai_text(update, context):
 
     text = (update.message.text or "").strip()
 
-    if text in (AI_ASK_TEXT, BACK_BTN, "🔙 بازگشت به ادامه مراحل"):
+    if text == AI_ASK_TEXT:
+    return
+
+    # فقط دکمه‌های «بازگشت» واقعاً از AI خارج کنند
+    if text in (BACK_BTN, "🔙 بازگشت به ادامه مراحل"):
         resume_from_ai(update, context)
         return
         
@@ -369,12 +373,13 @@ def handle_message(update: Update, context: CallbackContext):
     
         # --- گارد حالت AI: ابتدای تابع ---
         if context.user_data.get("ai_mode"):
+            # این خط، همان آپدیتی که start AI را زده، از ادامه‌ی پردازش بازمی‌دارد
+            if text == AI_ASK_TEXT:
+                return
+    
             handle_ai_text(update, context)
-        
-            # ✅ اگر وسط handle_ai_text از AI خارج شدیم، ادامه نده
             if not context.user_data.get("ai_mode"):
                 return
-        
             return
             
         # اگر کاربر دکمه بازگشت زد
