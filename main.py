@@ -194,7 +194,7 @@ def resume_from_ai(update, context):
         return  # اگر به هر دلیل chat_id نداشتیم، بی‌صدا خارج شو
 
     # 4) ادامه‌ی همان مرحله قبلی (بر اساس آخرین برچسب سوال)
-    last_q = context.user_data.get("last_question_text")
+    last_q = context.user_data.get("last_question")
 
     if last_q:
         # اینجا می‌تونی به‌صورت دقیق به همان مرحله برگردی.
