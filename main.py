@@ -330,6 +330,9 @@ def cmd_ai(update, context):
 
 def handle_message(update: Update, context: CallbackContext):
     try:
+        # دیباگ:
+        print("DBG: handle_message got message text:", getattr(update.message, "text", None))
+        
         chat_id = update.message.chat_id
         text = (update.message.text or "").strip()
         user_data.setdefault(chat_id, {"step": 0})
@@ -2024,9 +2027,11 @@ def handle_message(update: Update, context: CallbackContext):
         )
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print("handle_message ERROR:", e)
-        context.bot.send_message(chat_id=update.effective_chat.id, text="❌ خطای غیرمنتظره. لطفاً دوباره تلاش کنید.")
-
+        context.bot.send_message(chat_id=update.effective_chat.id, text="❌ خطای غیرمنتظره.")
+        
 def handle_back(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     data = user_data.setdefault(chat_id, {"step": 0})
