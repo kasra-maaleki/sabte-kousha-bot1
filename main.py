@@ -168,28 +168,56 @@ def handle_ai_text(update, context):
         print("GROQ ERROR:", e)
 
 def resume_from_ai(update, context):
-    # کال‌بک دکمهٔ «↩️ برگشت به ادامه تنظیم صورتجلسه»
-    query = update.callback_query
-    query.answer()
+    """
+    خروج از حالت AI و برگشت به ادامه‌ی مراحل.
+    هم برای پیام متنی (ReplyKeyboard) و هم برای CallbackQuery امن است.
+    """
+    # 1) اگر از اینلاین‌باتن بود، فقط در همان حالت answer کن
+    q = getattr(update, "callback_query", None)
+    if q:
+        try:
+            q.answer()
+        except Exception:
+            pass
 
-    context.user_data["ai_mode"] = False  # خروج از AI
+    # 2) خاموش‌کردن حالت AI
+    context.user_data["ai_mode"] = False
 
+    # 3) تشخیص chat_id به‌صورت امن
+    chat_id = None
+    if getattr(update, "effective_chat", None):
+        chat_id = update.effective_chat.id
+    elif q and getattr(q, "message", None):
+        chat_id = q.message.chat_id
+
+    if not chat_id:
+        return  # اگر به هر دلیل chat_id نداشتیم، بی‌صدا خارج شو
+
+    # 4) ادامه‌ی همان مرحله قبلی (بر اساس آخرین برچسب سوال)
     last_q = context.user_data.get("last_question_text")
-    # پاک کردن دکمهٔ اینلاین از پیام پاسخ (اختیاری)
-    try:
-        query.edit_message_reply_markup(None)
-    except:
-        pass
 
     if last_q:
-        context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=last_q,
-            reply_markup=base_reply_keyboard()
-        )
+        # اینجا می‌تونی به‌صورت دقیق به همان مرحله برگردی.
+        # اگر هنوز روتِر مرحله نداری، فعلاً یک پیام راهنما بده و همان سوال بعدی را بپرس.
+        context.bot.send_message(chat_id=chat_id, text="✅ از حالت سوال از هوش ما خارج شدید. ادامه می‌دهیم…")
+        # مثال: اگر آخرین سوال «نام شرکت» بوده، برو سراغ سوال بعدی‌اش
+        # (در کدت اگر step را ذخیره می‌کنی، بهتر است از step استفاده کنی)
+        # نمونه‌ی عمومی:
+        step = context.user_data.get("step")
+        topic = context.user_data.get("موضوع صورتجلسه")
+        company_type = context.user_data.get("نوع شرکت")
+
+        # اگر منطق مرحله‌ای داری، همین‌جا بر اساس step یک سوال جلو برو:
+        # مثال خیلی ساده:
+        if step == 1 and topic == "تغییر نام شرکت" and company_type == "سهامی خاص":
+            context.user_data["step"] = 2
+            context.bot.send_message(chat_id=chat_id, text="شماره ثبت را وارد کنید (فقط عدد):")
+        else:
+            # اگر نمی‌دانی کجا بودی، منوی موضوع را بده
+            send_topic_menu(chat_id, context)
     else:
-        # اگر قبلاً سؤالی ذخیره نشده بود، به منوی موضوعات برگرد
-        send_topic_menu(update.effective_chat.id, context)
+        # اگر آخرین سوالی ذخیره نشده بود، برگرد به منوی موضوع
+        send_topic_menu(chat_id, context)
 
 
 def generate_word_file(text: str, filepath: str = None):
