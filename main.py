@@ -142,7 +142,7 @@ def handle_ai_text(update, context):
     text = (update.message.text or "").strip()
 
     if text == AI_ASK_TEXT:
-    return
+        return
 
     # فقط دکمه‌های «بازگشت» واقعاً از AI خارج کنند
     if text in (BACK_BTN, "🔙 بازگشت به ادامه مراحل"):
