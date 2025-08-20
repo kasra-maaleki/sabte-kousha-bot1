@@ -16,6 +16,7 @@ from groq import Groq
 import re
 from collections import defaultdict
 from telegram.ext import Dispatcher
+from telegram import ReplyKeyboardRemove
 
 
 TOKEN = os.getenv("BOT_TOKEN")
@@ -124,15 +125,36 @@ def has_min_digits_fa(s: str, n: int = 10) -> bool:
     digits = "".join(ch for ch in en if ch.isdigit())
     return len(digits) >= n
 
-def enter_ai_mode_reply(update, context):
-    # وقتی کاربر روی دکمهٔ «❓ سؤال دارم» زد
-    if (update.message and (update.message.text or "").strip() == AI_ASK_TEXT):
-        context.user_data["ai_mode"] = True
-        update.message.reply_text(
-            "شما در حالت پرسش از هوش ما هستید 🧠.\n"
-            "سؤال خود را بپرسید یا برای بازگشت دکمه زیر را بزنید.",
-            reply_markup=base_reply_keyboard()
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
+
+def enter_ai_mode_reply(update: Update, context: CallbackContext):
+    chat_id = update.effective_chat.id
+    context.user_data["ai_mode"] = True
+
+    # 1) ارسال پیامِ ورود و حذف کیبورد ثابت
+    msg = update.message.reply_text(
+        "🧠 حالت هوشمند فعال شد.\nسؤال‌ت رو بپرس؛ برای بازگشت از دکمهٔ ↩️ زیر همین پیام استفاده کن.",
+        reply_markup=ReplyKeyboardRemove()
+    )
+
+    # 2) بلافاصله همان پیام را ویرایش کن و دکمهٔ اینلاین بازگشت را به آن اضافه کن
+    try:
+        msg.edit_reply_markup(
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("↩️ برگشت به ادامه تنظیم صورتجلسه", callback_data=AI_RESUME)]]
+            )
         )
+    except Exception as e:
+        # اگر به هر دلیل ویرایش نشد، (fallback) یک پیام ثانویه بفرست
+        context.bot.send_message(
+            chat_id=chat_id,
+            text="برای بازگشت از دکمهٔ زیر استفاده کن:",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("↩️ برگشت به ادامه تنظیم صورتجلسه", callback_data=AI_RESUME)]]
+            )
+        )
+        print("edit_reply_markup failed:", e)
+
 
 
 def handle_ai_text(update, context):
