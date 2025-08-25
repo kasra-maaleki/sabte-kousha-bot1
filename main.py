@@ -3075,10 +3075,15 @@ def handle_back(update: Update, context: CallbackContext):
 
 def button_handler(update: Update, context: CallbackContext):
     query = update.callback_query
+    data = query.data
+
+    # اگر کال‌بکِ مخصوص خروج از AI بود یا هنوز داخل AI هستیم، این هندلر کاری نکند
+    if data == AI_RESUME or context.user_data.get("ai_mode"):
+        return
+
     chat_id = query.message.chat_id
     query.answer()
     user_data.setdefault(chat_id, {})
-    data = user_data[chat_id]
 
     if "موضوع صورتجلسه" not in user_data.get(chat_id, {}):
         user_data[chat_id]["موضوع صورتجلسه"] = query.data
@@ -3738,7 +3743,7 @@ dispatcher.add_handler(CallbackQueryHandler(resume_from_ai, pattern=f"^{AI_RESUM
 # ===== گروه 1: هندلرهای عمومی =====
 dispatcher.add_handler(CommandHandler("ai", cmd_ai), group=1)
 dispatcher.add_handler(CommandHandler("start", start), group=1)
-dispatcher.add_handler(CallbackQueryHandler(button_handler), group=1)
+dispatcher.add_handler(CallbackQueryHandler(button_handler, pattern=fr"^(?!{AI_RESUME}$).+"),group=1)
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message), group=1)
 
 
