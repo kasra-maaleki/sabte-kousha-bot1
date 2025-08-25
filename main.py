@@ -1,6 +1,6 @@
 import telegram
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, ReplyKeyboardRemove
 from telegram import ReplyKeyboardMarkup, KeyboardButton
 from telegram import ChatAction
 from flask import Flask, request
@@ -128,7 +128,21 @@ def has_min_digits_fa(s: str, n: int = 10) -> bool:
     digits = "".join(ch for ch in en if ch.isdigit())
     return len(digits) >= n
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
+def _meeting_title_by_jalali_date(date_str: str) -> str:
+    """
+    اگر ماه جلالی بین ۱ تا ۴ باشد → «مجمع عمومی عادی بطور سالیانه»
+    در غیر این صورت → «مجمع عمومی عادی بطور فوق العاده»
+    انتظار فرمت: YYYY/MM/DD با اعداد فارسی (مثل ۱۴۰۴/۰۵/۱۵)
+    """
+    if not date_str or date_str.count("/") != 2:
+        return "مجمع عمومی عادی بطور فوق العاده"
+    en = fa_to_en_number(date_str)
+    try:
+        _y, m, _d = [int(x) for x in en.split("/")]
+        return "مجمع عمومی عادی بطور سالیانه" if 1 <= m <= 4 else "مجمع عمومی عادی بطور فوق العاده"
+    except Exception:
+        return "مجمع عمومی عادی بطور فوق العاده"
+
 
 def enter_ai_mode_reply(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
@@ -635,6 +649,273 @@ def handle_message(update: Update, context: CallbackContext):
     
             if step >= 11:
                 context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات قبلاً ثبت شده است. برای شروع مجدد /start را ارسال کنید.", reply_markup=main_keyboard())
+                return
+
+        # -------------------------------
+        # تمدید سمت اعضا - سهامی خاص (داینامیک هیئت‌مدیره + سهامداران)
+        # -------------------------------
+        if موضوع == "تمدید سمت اعضا" and نوع_شرکت == "سهامی خاص":
+            if step == 1:
+                data["نام شرکت"] = text
+                data["step"] = 2
+                label = get_label("شماره ثبت")
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            if step == 2:
+                if not is_persian_number(text):
+                    context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
+                    return
+                data["شماره ثبت"] = text
+                data["step"] = 3
+                label = get_label("شناسه ملی")
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            if step == 3:
+                if not is_persian_number(text):
+                    context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
+                    return
+                data["شناسه ملی"] = text
+                data["step"] = 4
+                label = get_label("سرمایه")
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            if step == 4:
+                if not is_persian_number(text):
+                    context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
+                    return
+                data["سرمایه"] = text
+                data["step"] = 5
+                label = get_label("تاریخ")
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            if step == 5:
+                # همان الگوی خودت برای اعتبارسنجی تاریخ
+                if 'is_valid_persian_date' in globals():
+                    if not is_valid_persian_date(text):
+                        context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. نمونه: ۱۴۰۴/۰۵/۱۵", reply_markup=main_keyboard())
+                        return
+                else:
+                    if text.count('/') != 2:
+                        context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست.", reply_markup=main_keyboard())
+                        return
+                data["تاریخ"] = text
+                data["step"] = 6
+                label = get_label("ساعت")
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            if step == 6:
+                if not is_persian_number(text):
+                    context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
+                    return
+                data["ساعت"] = text
+                data["step"] = 7
+                label = "نام مدیرعامل را وارد کنید (مثال: آقای ... / خانم ...):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            if step == 7:
+                data["مدیر عامل"] = text
+                data["step"] = 8
+                label = "نام نایب‌رییس (ناظر ۱) را وارد کنید (مثال: آقای ... / خانم ...):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            if step == 8:
+                data["نایب رییس"] = text
+                data["step"] = 9
+                label = "نام رییس (ناظر ۲) را وارد کنید (مثال: آقای ... / خانم ...):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            if step == 9:
+                data["رییس"] = text
+                data["step"] = 10
+                label = "نام منشی جلسه را وارد کنید (مثال: آقای ... / خانم ...):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            if step == 10:
+                data["منشی"] = text
+                data["step"] = 11
+                label = "تعداد اعضای هیئت‌مدیره را وارد کنید (اعداد فارسی):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            # دریافت تعداد اعضای هیئت‌مدیره → حلقه نام/کدملی
+            if step == 11:
+                if not is_persian_number(text):
+                    context.bot.send_message(chat_id=chat_id, text="❗️تعداد اعضای هیئت‌مدیره را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
+                    return
+                count = int(fa_to_en_number(text))
+                if count < 1:
+                    context.bot.send_message(chat_id=chat_id, text="❗️حداقل یک عضو لازم است.", reply_markup=main_keyboard())
+                    return
+                data["تعداد اعضای هیئت مدیره"] = count
+                data["عضو_index"] = 1
+                data["step"] = 12
+                label = f"نام عضو هیئت‌مدیره ۱ را وارد کنید (مثال: آقای ... / خانم ...):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            # حلقه اعضای هیئت‌مدیره: step == 12
+            if step == 12:
+                i = data.get("عضو_index", 1)
+                prefix = f"عضو {i}"
+                if f"{prefix} نام" not in data:
+                    data[f"{prefix} نام"] = text
+                    label = f"کد ملی عضو هیئت‌مدیره {i} را وارد کنید (اعداد فارسی):"
+                    remember_last_question(context, label)
+                    context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                    return
+                elif f"{prefix} کد ملی" not in data:
+                    if not is_persian_number(text):
+                        context.bot.send_message(chat_id=chat_id, text="❗️کد ملی را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
+                        return
+                    data[f"{prefix} کد ملی"] = text
+                    total = data["تعداد اعضای هیئت مدیره"]
+                    if i < total:
+                        data["عضو_index"] = i + 1
+                        label = f"نام عضو هیئت‌مدیره {i+1} را وارد کنید (مثال: آقای ... / خانم ...):"
+                        remember_last_question(context, label)
+                        context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                        return
+                    else:
+                        data["step"] = 13
+                        label = "نام بازرس اصلی را وارد کنید (مثال: آقای ... / خانم ...):"
+                        remember_last_question(context, label)
+                        context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                        return
+        
+            if step == 13:
+                data["بازرس اصلی"] = text
+                data["step"] = 14
+                label = "کد ملی بازرس اصلی را وارد کنید (اعداد فارسی):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            if step == 14:
+                if not is_persian_number(text):
+                    context.bot.send_message(chat_id=chat_id, text="❗️کد ملی را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
+                    return
+                data["کد ملی بازرس اصلی"] = text
+                data["step"] = 15
+                label = "نام بازرس علی‌البدل را وارد کنید (مثال: آقای ... / خانم ...):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            if step == 15:
+                data["بازرس علی البدل"] = text
+                data["step"] = 16
+                label = "کد ملی بازرس علی‌البدل را وارد کنید (اعداد فارسی):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            if step == 16:
+                if not is_persian_number(text):
+                    context.bot.send_message(chat_id=chat_id, text="❗️کد ملی را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
+                    return
+                data["کد ملی بازرس علی البدل"] = text
+                data["step"] = 17
+                label = "نام روزنامه کثیرالانتشار را وارد کنید:"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            if step == 17:
+                data["روزنامه کثیرالانتشار"] = text
+                data["step"] = 18
+                label = "نام وکیل (سهامدار یا وکیل رسمی شرکت) را وارد کنید (مثال: آقای ... / خانم ...):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            if step == 18:
+                data["وکیل"] = text
+                data["step"] = 19
+                label = "تعداد سهامداران حاضر را وارد کنید (عدد فارسی):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            # دریافت تعداد سهامداران → حلقه نام/تعداد
+            if step == 19:
+                if not text.isdigit() and not is_persian_number(text):
+                    context.bot.send_message(chat_id=chat_id, text="❗️عدد وارد کنید.", reply_markup=main_keyboard())
+                    return
+                count = int(fa_to_en_number(text))
+                if count < 1:
+                    context.bot.send_message(chat_id=chat_id, text="❗️حداقل یک سهامدار لازم است.", reply_markup=main_keyboard())
+                    return
+                data["تعداد سهامداران"] = count
+                data["سهامدار_index"] = 1
+                data["step"] = 20
+                label = "نام سهامدار شماره ۱ را وارد کنید (مثال: آقای ... / خانم ...):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            if step == 20:
+                i = data.get("سهامدار_index", 1)
+                prefix = f"سهامدار {i}"
+                if f"{prefix} نام" not in data:
+                    data[f"{prefix} نام"] = text
+                    label = f"تعداد سهام {prefix} را وارد کنید (اعداد فارسی):"
+                    remember_last_question(context, label)
+                    context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                    return
+                elif f"{prefix} تعداد" not in data:
+                    if not is_persian_number(text):
+                        context.bot.send_message(chat_id=chat_id, text="❗️تعداد سهام را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
+                        return
+                    data[f"{prefix} تعداد"] = text
+                    total = data["تعداد سهامداران"]
+                    if i < total:
+                        data["سهامدار_index"] = i + 1
+                        label = f"نام سهامدار شماره {i+1} را وارد کنید (مثال: آقای ... / خانم ...):"
+                        remember_last_question(context, label)
+                        context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                        return
+                    else:
+                        # خلاصه و فایل Word
+                        meeting_title = _meeting_title_by_jalali_date(data.get("تاریخ", ""))
+                        # ساخت متن هیئت‌مدیره
+                        board_parts = []
+                        for j in range(1, data["تعداد اعضای هیئت مدیره"] + 1):
+                            nm = data.get(f"عضو {j} نام", "")
+                            nid = data.get(f"عضو {j} کد ملی", "")
+                            part = nm if not nid else f"{nm} به شماره ملی {nid}"
+                            board_parts.append(part)
+                        board_block = " ".join(board_parts).strip()
+        
+                        # ساخت جدول سهامداران
+                        holders_lines = []
+                        for j in range(1, data["تعداد سهامداران"] + 1):
+                            nm = data.get(f"سهامدار {j} نام", "")
+                            sh = data.get(f"سهامدار {j} تعداد", "")
+                            holders_lines.append(f"{j}\n\t{nm}\t{sh}\t")
+                        holders_block = "\n".join(holders_lines)
+
+            if step >= 21:
+                context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات ثبت شد. برای شروع مجدد /start را ارسال کنید.", reply_markup=main_keyboard())
                 return
     
         # -------------------------------
@@ -2158,6 +2439,142 @@ def handle_back(update: Update, context: CallbackContext):
             return
 
     # --------------------------------------
+    # بازگشت: تمدید سمت اعضا - سهامی خاص
+    # --------------------------------------
+    if موضوع == "تمدید سمت اعضا" and نوع_شرکت == "سهامی خاص":
+        # مسیر خطی 2..6
+        if 2 <= step <= 6:
+            prev_step = step - 1
+            order = ["نام شرکت","شماره ثبت","شناسه ملی","سرمایه","تاریخ","ساعت"]
+            key = order[prev_step - 1] if prev_step - 1 < len(order) else None
+            if prev_step == 1:
+                data.pop("نام شرکت", None)
+                data["step"] = 1
+                context.bot.send_message(chat_id=chat_id, text=get_label("نام شرکت"))
+                return
+            if key:
+                data.pop(key, None)
+                data["step"] = prev_step
+                context.bot.send_message(chat_id=chat_id, text=get_label(key))
+                return
+    
+        # هیئت‌رئیسه 7..10
+        if step == 7:
+            data["step"] = 6
+            context.bot.send_message(chat_id=chat_id, text=get_label("ساعت"))
+            return
+        if step == 8:
+            data.pop("مدیر عامل", None)
+            data["step"] = 7
+            context.bot.send_message(chat_id=chat_id, text="نام مدیرعامل را وارد کنید (مثال: آقای ... / خانم ...):")
+            return
+        if step == 9:
+            data.pop("نایب رییس", None)
+            data["step"] = 8
+            context.bot.send_message(chat_id=chat_id, text="نام نایب‌رییس (ناظر ۱) را وارد کنید (مثال: آقای ... / خانم ...):")
+            return
+        if step == 10:
+            data.pop("رییس", None)
+            data["step"] = 9
+            context.bot.send_message(chat_id=chat_id, text="نام رییس (ناظر ۲) را وارد کنید (مثال: آقای ... / خانم ...):")
+            return
+    
+        # بازگشت از حلقه هیئت‌مدیره (step=12) یا به «تعداد اعضا» (step=11)
+        if step == 11:
+            data.pop("منشی", None)
+            data["step"] = 10
+            context.bot.send_message(chat_id=chat_id, text="نام منشی جلسه را وارد کنید (مثال: آقای ... / خانم ...):")
+            return
+    
+        if step == 12:
+            i = data.get("عضو_index", 1)
+            if f"عضو {i} نام" not in data:
+                if i == 1:
+                    data.pop("تعداد اعضای هیئت مدیره", None)
+                    data["step"] = 11
+                    context.bot.send_message(chat_id=chat_id, text="تعداد اعضای هیئت‌مدیره را وارد کنید (اعداد فارسی):")
+                    return
+                prev_i = i - 1
+                data["عضو_index"] = prev_i
+                data.pop(f"عضو {prev_i} کد ملی", None)
+                data["step"] = 12
+                context.bot.send_message(chat_id=chat_id, text=f"کد ملی عضو هیئت‌مدیره {prev_i} را وارد کنید (اعداد فارسی):")
+                return
+            if f"عضو {i} کد ملی" not in data:
+                data.pop(f"عضو {i} نام", None)
+                data["step"] = 12
+                context.bot.send_message(chat_id=chat_id, text=f"نام عضو هیئت‌مدیره {i} را وارد کنید (مثال: آقای ... / خانم ...):")
+                return
+    
+        # 13..18 بازرسین/روزنامه/وکیل
+        if step == 13:
+            data.pop("بازرس اصلی", None)
+            data["step"] = 12
+            context.bot.send_message(chat_id=chat_id, text=f"نام عضو هیئت‌مدیره {data.get('عضو_index',1)} را وارد کنید (مثال: آقای ... / خانم ...):")
+            return
+        if step == 14:
+            data.pop("کد ملی بازرس اصلی", None)
+            data["step"] = 13
+            context.bot.send_message(chat_id=chat_id, text="نام بازرس اصلی را وارد کنید (مثال: آقای ... / خانم ...):")
+            return
+        if step == 15:
+            data.pop("بازرس علی البدل", None)
+            data["step"] = 14
+            context.bot.send_message(chat_id=chat_id, text="کد ملی بازرس اصلی را وارد کنید (اعداد فارسی):")
+            return
+        if step == 16:
+            data.pop("کد ملی بازرس علی البدل", None)
+            data["step"] = 15
+            context.bot.send_message(chat_id=chat_id, text="نام بازرس علی‌البدل را وارد کنید (مثال: آقای ... / خانم ...):")
+            return
+        if step == 17:
+            data.pop("روزنامه کثیرالانتشار", None)
+            data["step"] = 16
+            context.bot.send_message(chat_id=chat_id, text="کد ملی بازرس علی‌البدل را وارد کنید (اعداد فارسی):")
+            return
+        if step == 18:
+            data.pop("وکیل", None)
+            data["step"] = 17
+            context.bot.send_message(chat_id=chat_id, text="نام روزنامه کثیرالانتشار را وارد کنید:")
+            return
+    
+        # سهامداران: 19 تعداد → 20 حلقه
+        if step == 19:
+            data["step"] = 18
+            context.bot.send_message(chat_id=chat_id, text="نام وکیل (سهامدار یا وکیل رسمی شرکت) را وارد کنید (مثال: آقای ... / خانم ...):")
+            return
+    
+        if step == 20:
+            i = data.get("سهامدار_index", 1)
+            if f"سهامدار {i} نام" not in data:
+                if i == 1:
+                    data.pop("تعداد سهامداران", None)
+                    data["step"] = 19
+                    context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران حاضر را وارد کنید (عدد فارسی):")
+                    return
+                prev_i = i - 1
+                data["سهامدار_index"] = prev_i
+                data.pop(f"سهامدار {prev_i} تعداد", None)
+                data["step"] = 20
+                context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار {prev_i} را وارد کنید (اعداد فارسی):")
+                return
+            if f"سهامدار {i} تعداد" not in data:
+                data.pop(f"سهامدار {i} نام", None)
+                data["step"] = 20
+                context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار {i} را وارد کنید (مثال: آقای ... / خانم ...):")
+                return
+    
+        if step >= 21:
+            # برگرد به تعداد سهام آخرین سهامدار
+            maxc = data.get("تعداد سهامداران", 1)
+            data["سهامدار_index"] = maxc
+            data.pop(f"سهامدار {maxc} تعداد", None)
+            data["step"] = 20
+            context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار {maxc} را وارد کنید (اعداد فارسی):")
+            return
+
+
+    # --------------------------------------
     # بازگشت: تغییر موضوع فعالیت – سهامی خاص
     # مراحل: 1..10 خطی، 11 تعداد سهامداران، 12 حلقه سهامداران، 13 انتخاب الحاق/جایگزین (callback)، 14 موضوع جدید، 15 وکیل
     # --------------------------------------
@@ -3281,6 +3698,84 @@ def send_summary(chat_id, context):
         os.remove(file_path)  # ← حذف فایل پس از ارسال (اختیاری)
         return
 
+
+    # ---------------------------
+    # ۱) تمدید سمت اعضا — فقط سهامی خاص (داینامیک هیئت‌مدیره + سهامداران)
+    # ---------------------------
+    if موضوع == "تمدید سمت اعضا" and نوع_شرکت == "سهامی خاص":
+        meeting_title = _meeting_title_by_jalali_date(data.get("تاریخ", ""))
+
+        # بلوک هیئت‌مدیره (داینامیک)
+        board_parts = []
+        total_board = int(fa_to_en_number(str(data.get("تعداد اعضای هیئت مدیره", "0"))) or 0)
+        for i in range(1, total_board + 1):
+            nm  = data.get(f"عضو {i} نام", "")
+            nid = data.get(f"عضو {i} کد ملی", "")
+            board_parts.append(nm if not nid else f"{nm} به شماره ملی {nid}")
+        board_block = " ".join([p for p in board_parts if p.strip()])
+
+        # جدول سهامداران (داینامیک)
+        holders_lines = []
+        total_holders = int(fa_to_en_number(str(data.get("تعداد سهامداران", "0"))) or 0)
+        for j in range(1, total_holders + 1):
+            nm = data.get(f"سهامدار {j} نام", "")
+            sh = data.get(f"سهامدار {j} تعداد", "")
+            holders_lines.append(f"{j}\n\t{nm}\t{sh}\t")
+        holders_block = "\n".join(holders_lines)
+
+        # متن نهایی (طبق قالبی که خودت دادی)
+        text_out = f"""
+{meeting_title} شرکت {data.get("نام شرکت","")} ){نوع_شرکت}(
+شماره ثبت شرکت :     {data.get("شماره ثبت","")}
+شناسه ملی :      {data.get("شناسه ملی","")}
+سرمایه ثبت شده : {data.get("سرمایه","")} ریال
+
+{meeting_title} شرکت {data.get("نام شرکت","")} ){نوع_شرکت}( ثبت شده به شماره {data.get("شماره ثبت","")} در تاریخ {data.get("تاریخ","")} ساعت {data.get("ساعت","")} با حضور کلیه سهامداران در محل قانونی شرکت تشکیل گردید.
+الف: در اجرای ماده 101 لایحه اصلاحی قانون تجارت
+ـ  {data.get("مدیر عامل","")}                                   به سمت رئیس جلسه 
+ـ  {data.get("نایب رییس","")}                                  به سمت ناظر 1 جلسه 
+ـ  {data.get("رییس","")}                                        به سمت ناظر 2 جلسه 
+ـ  {data.get("منشی","")}                                        به سمت منشی جلسه انتخاب شدند
+ب: در خصوص دستور جلسه، 1ـ انتخاب مدیران 2ـ انتخاب بازرسین 3ـ انتخاب روزنامه کثیرالانتشار
+ب ـ 1ـ اعضای هیات مدیره عبارتند از {board_block} برای مدت دو سال انتخاب و با امضاء ذیل صورتجلسه قبولی خود را اعلام می دارند. 
+ب ـ 2ـ با رعایت ماده 147 لایحه اصلاحی قانون تجارت {data.get("بازرس اصلی","")} به شماره ملی {data.get("کد ملی بازرس اصلی","")} به سمت بازرس اصلی و {data.get("بازرس علی البدل","")} به شماره ملی {data.get("کد ملی بازرس علی البدل","")} به سمت بازرس علی البدل برای مدت یک سال مالی انتخاب شدند.
+ب ـ 3ـ روزنامه کثیرالانتشار {data.get("روزنامه کثیرالانتشار","")} جهت نشر آگهی های شرکت انتخاب شد.
+ج: اینجانبان اعضاء هیات مدیره و بازرسین ضمن قبولی سمت خود اقرار می نمائیم که هیچگونه سوء پیشینه کیفری نداشته و ممنوعیت اصل 141 قانون اساسی و مواد 111 و 147 لایحه اصلاحی قانون تجارت را نداریم. 
+د: به {data.get("وکیل","")} احدی از سهامداران یا وکیل رسمی شرکت وکالت داده می شود که ضمن مراجعه به اداره ثبت شرکت ها نسبت به ثبت صورتجلسه و پرداخت حق الثبت و امضاء ذیل دفاتر ثبت اقدام نماید.
+امضاء اعضاء هیات رئیسه: 
+رئیس جلسه :  {data.get("مدیر عامل","")}                                   ناظر1 جلسه : {data.get("نایب رییس","")}                               
+
+
+ناظر2جلسه : {data.get("رییس","")}                                       منشی جلسه: {data.get("منشی","")}
+
+امضاء اعضای هیات مدیره:
+{ "                           ".join([data.get(f"عضو {k} نام","") for k in range(1, total_board+1)]) }
+امضاء بازرسین:
+{data.get("بازرس اصلی","")}                                    {data.get("بازرس علی البدل","")}
+
+
+
+صورت سهامداران حاضر در {meeting_title} مورخه {data.get("تاریخ","")}
+{data.get("نام شرکت","")}
+ردیف\tنام و نام خانوادگی\tتعداد سهام\tامضا سهامداران
+{holders_block}
+""".strip()
+
+        # ارسال متن بلند در چند تکه (برای محدودیت تلگرام)
+        for i in range(0, len(text_out), 3500):
+            context.bot.send_message(chat_id=chat_id, text=text_out[i:i+3500])
+
+        # فایل Word (با همان تابع پروژهٔ خودت)
+        try:
+            filepath = generate_word_file(text_out)
+            with open(filepath, "rb") as f:
+                context.bot.send_document(chat_id=chat_id, document=f, filename=os.path.basename(filepath))
+        except Exception as e:
+            context.bot.send_message(chat_id=chat_id, text=f"⚠️ ساخت فایل Word ناموفق بود: {e}")
+
+        return  # پایان این سناریو
+
+    
     if موضوع == "نقل و انتقال سهام" and نوع_شرکت == "سهامی خاص":
         text = f"""صورتجلسه مجمع عمومی فوق العاده شرکت {data['نام شرکت']} ({نوع_شرکت})  
     شماره ثبت شرکت :     {data['شماره ثبت']}
