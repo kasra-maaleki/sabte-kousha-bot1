@@ -317,19 +317,32 @@ def start(update: Update, context: CallbackContext):
     send_topic_menu(chat_id, context)
 
 def start_extend_roles_flow(update, context):
-    """شروع سناریوی تمدید سمت اعضا (سهامی خاص) - استاب مرحله ۱"""
     chat_id = update.effective_chat.id
-    # دیکشنری مخصوص این سناریو
-    context.user_data["extend_roles"] = {}
-    # وضعیت اولیه را ست می‌کنیم؛ در مرحله ۲ استیت‌ها را کامل می‌کنیم
-    context.user_data["extend_state"] = "ASK_COMPANY_NAME"
+    user_data.setdefault(chat_id, {})
+    d = user_data[chat_id]
 
-    # چون موضوع فقط سهامی خاص است، همان‌جا در دیتا نگه می‌داریم
-    d = context.user_data["extend_roles"]
-    d["نوع شرکت"] = "سهامی خاص"
+    # مقداردهی اولیه سناریو
+    d["موضوع صورتجلسه"] = TOPIC_EXTEND_ROLES
+    d["نوع شرکت"] = "سهامی خاص"   # مهم: گارد «نوع شرکت را انتخاب کنید» را دور می‌زنیم
+    d["step"] = 1
 
-    # اولین سؤال (با مثال مطابق خواسته تو)
-    context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
+    # پاک‌سازی باقیمانده‌های احتمالی از اجرای قبلی همین سناریو
+    for k in ["عضو_index", "سهامدار_index", "تعداد اعضای هیئت مدیره", "تعداد سهامداران"]:
+        d.pop(k, None)
+    for k in list(d.keys()):
+        if k.startswith("عضو ") or k.startswith("سهامدار "):
+            d.pop(k, None)
+
+    # سؤال اول (هماهنگ با روال پروژه)
+    label = get_label("نام شرکت") if 'get_label' in globals() else "نام شرکت را وارد کنید:"
+    if 'remember_last_question' in globals():
+        remember_last_question(context, label)
+
+    kb = main_keyboard() if 'main_keyboard' in globals() else None
+    if kb:
+        context.bot.send_message(chat_id=chat_id, text=label, reply_markup=kb)
+    else:
+        context.bot.send_message(chat_id=chat_id, text=label)
 
 
 def get_label(field, **kwargs):
