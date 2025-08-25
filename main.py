@@ -133,7 +133,7 @@ def enter_ai_mode_reply(update: Update, context: CallbackContext):
 
     # 1) ارسال پیامِ ورود و حذف کیبورد ثابت
     msg = update.message.reply_text(
-        "🧠 حالت هوشمند ما فعال شد.\nسؤالت رو بپرس.",
+        "🧠 حالت هوشمند ما فعال شد.\nسؤالت رو بپرس",
         reply_markup=ReplyKeyboardRemove()
     )
 
