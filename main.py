@@ -3743,7 +3743,7 @@ dispatcher.add_handler(CallbackQueryHandler(resume_from_ai, pattern=f"^{AI_RESUM
 # ===== گروه 1: هندلرهای عمومی =====
 dispatcher.add_handler(CommandHandler("ai", cmd_ai), group=1)
 dispatcher.add_handler(CommandHandler("start", start), group=1)
-dispatcher.add_handler(CallbackQueryHandler(button_handler, pattern=fr"^(?!{AI_RESUME}$).+"),group=1)
+dispatcher.add_handler(CallbackQueryHandler(button_handler), group=1)
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message), group=1)
 
 
