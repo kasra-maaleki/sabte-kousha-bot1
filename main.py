@@ -42,6 +42,9 @@ AI_ASK_TEXT = "❓ سؤال دارم"
 GROQ_MODEL_QUALITY = "llama-3.3-70b-versatile" # کیفیت بالاتر
 GROQ_MODEL = GROQ_MODEL_QUALITY
 
+TOPIC_EXTEND_ROLES = "تمدید سمت اعضا"
+
+
 groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 def ask_groq(user_text: str, system_prompt: str = None, max_tokens: int = 1024) -> str:
@@ -261,7 +264,7 @@ def send_topic_menu(chat_id, context):
         [InlineKeyboardButton("🏢 تغییر آدرس", callback_data='تغییر آدرس')],
         [InlineKeyboardButton("🔄 نقل و انتقال سهام", callback_data='نقل و انتقال سهام')],
         [InlineKeyboardButton("🧾 تغییر موضوع فعالیت", callback_data='تغییر موضوع فعالیت')],
-        [InlineKeyboardButton("⏳ تمدید سمت اعضا", callback_data='تمدید سمت اعضا')],
+        [InlineKeyboardButton("⏳ تمدید سمت اعضا", callback_data="topic:extend_roles")],
         [InlineKeyboardButton("📈 افزایش سرمایه", callback_data='افزایش سرمایه')],
         [InlineKeyboardButton("📉 کاهش سرمایه", callback_data='کاهش سرمایه')],
         [InlineKeyboardButton("🏷️ تغییر نام شرکت", callback_data='تغییر نام شرکت')],
@@ -298,6 +301,22 @@ def start(update: Update, context: CallbackContext):
         reply_markup=main_keyboard()
     )
     send_topic_menu(chat_id, context)
+
+def start_extend_roles_flow(update, context):
+    """شروع سناریوی تمدید سمت اعضا (سهامی خاص) - استاب مرحله ۱"""
+    chat_id = update.effective_chat.id
+    # دیکشنری مخصوص این سناریو
+    context.user_data["extend_roles"] = {}
+    # وضعیت اولیه را ست می‌کنیم؛ در مرحله ۲ استیت‌ها را کامل می‌کنیم
+    context.user_data["extend_state"] = "ASK_COMPANY_NAME"
+
+    # چون موضوع فقط سهامی خاص است، همان‌جا در دیتا نگه می‌داریم
+    d = context.user_data["extend_roles"]
+    d["نوع شرکت"] = "سهامی خاص"
+
+    # اولین سؤال (با مثال مطابق خواسته تو)
+    context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
+
 
 def get_label(field, **kwargs):
     labels = {
@@ -3064,10 +3083,31 @@ def button_handler(update: Update, context: CallbackContext):
     user_data.setdefault(chat_id, {})
 
     if "موضوع صورتجلسه" not in user_data.get(chat_id, {}):
-        user_data[chat_id]["موضوع صورتجلسه"] = query.data
-        user_data[chat_id]["step"] = 0
-        send_company_type_menu(chat_id, context)
-        return
+        # اولین کلیک روی دکمه‌ی موضوع
+        if query.data == "topic:extend_roles":
+            # موضوع مخصوص تمدید سمت اعضا (فقط سهامی خاص)
+            user_data[chat_id]["موضوع صورتجلسه"] = TOPIC_EXTEND_ROLES
+            user_data[chat_id]["step"] = 0
+    
+            # حالت‌های این سناریو در context.user_data
+            context.user_data["topic"] = TOPIC_EXTEND_ROLES
+            context.user_data["company_type"] = "سهامی خاص"
+    
+            # پاک‌سازی وضعیت قبلی سناریو (اگر بود)
+            context.user_data.pop("extend_roles", None)
+            context.user_data.pop("extend_state", None)
+    
+            # شروع سناریو اختصاصی تمدید سمت اعضا
+            start_extend_roles_flow(update, context)
+            return
+        else:
+            # سایر موضوع‌ها طبق روال قبلی → انتخاب نوع شرکت
+            user_data[chat_id]["موضوع صورتجلسه"] = query.data
+            user_data[chat_id]["step"] = 0
+            send_company_type_menu(chat_id, context)
+            return
+
+
 
     if user_data[chat_id].get("step") == 0:
         user_data[chat_id]["نوع شرکت"] = query.data
