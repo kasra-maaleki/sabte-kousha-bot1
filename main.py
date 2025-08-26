@@ -2463,40 +2463,54 @@ def handle_back(update: Update, context: CallbackContext):
             if prev_step == 1:
                 data.pop("نام شرکت", None)
                 data["step"] = 1
-                context.bot.send_message(chat_id=chat_id, text=get_label("نام شرکت"))
+                label = get_label("نام شرکت")
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
             if key:
                 data.pop(key, None)
                 data["step"] = prev_step
-                context.bot.send_message(chat_id=chat_id, text=get_label(key))
+                label = get_label(key)
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
     
         # هیئت‌رئیسه 7..10
         if step == 7:
             data["step"] = 6
-            context.bot.send_message(chat_id=chat_id, text=get_label("ساعت"))
+            label = get_label("ساعت")
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
         if step == 8:
             data.pop("مدیر عامل", None)
             data["step"] = 7
-            context.bot.send_message(chat_id=chat_id, text="نام مدیرعامل را وارد کنید (مثال: آقای ... / خانم ...):")
+            label = "نام مدیرعامل را وارد کنید (مثال: آقای ... / خانم ...):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
         if step == 9:
             data.pop("نایب رییس", None)
             data["step"] = 8
-            context.bot.send_message(chat_id=chat_id, text="نام نایب‌رییس (ناظر ۱) را وارد کنید (مثال: آقای ... / خانم ...):")
+            label = "نام نایب‌رییس (ناظر ۱) را وارد کنید (مثال: آقای ... / خانم ...):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
         if step == 10:
             data.pop("رییس", None)
             data["step"] = 9
-            context.bot.send_message(chat_id=chat_id, text="نام رییس (ناظر ۲) را وارد کنید (مثال: آقای ... / خانم ...):")
+            label = "نام رییس (ناظر ۲) را وارد کنید (مثال: آقای ... / خانم ...):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
     
         # بازگشت از حلقه هیئت‌مدیره (step=12) یا به «تعداد اعضا» (step=11)
         if step == 11:
             data.pop("منشی", None)
             data["step"] = 10
-            context.bot.send_message(chat_id=chat_id, text="نام منشی جلسه را وارد کنید (مثال: آقای ... / خانم ...):")
+            label = "نام منشی جلسه را وارد کنید (مثال: آقای ... / خانم ...):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
     
         if step == 12:
@@ -2505,76 +2519,109 @@ def handle_back(update: Update, context: CallbackContext):
                 if i == 1:
                     data.pop("تعداد اعضای هیئت مدیره", None)
                     data["step"] = 11
-                    context.bot.send_message(chat_id=chat_id, text="تعداد اعضای هیئت‌مدیره را وارد کنید (اعداد فارسی):")
+                    label = "تعداد اعضای هیئت‌مدیره را وارد کنید (اعداد فارسی):"
+                    remember_last_question(context, label)
+                    context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                     return
                 prev_i = i - 1
                 data["عضو_index"] = prev_i
                 data.pop(f"عضو {prev_i} کد ملی", None)
                 data["step"] = 12
-                context.bot.send_message(chat_id=chat_id, text=f"کد ملی عضو هیئت‌مدیره {prev_i} را وارد کنید (اعداد فارسی):")
+                label = f"کد ملی عضو هیئت‌مدیره {prev_i} را وارد کنید (اعداد فارسی):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
             if f"عضو {i} کد ملی" not in data:
                 data.pop(f"عضو {i} نام", None)
                 data["step"] = 12
-                context.bot.send_message(chat_id=chat_id, text=f"نام عضو هیئت‌مدیره {i} را وارد کنید (مثال: آقای ... / خانم ...):")
+                label = f"نام عضو هیئت‌مدیره {i} را وارد کنید (مثال: آقای ... / خانم ...):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
     
         # 13..18 بازرسین/روزنامه/وکیل
         if step == 13:
             data.pop("بازرس اصلی", None)
             data["step"] = 12
-            context.bot.send_message(chat_id=chat_id, text=f"نام عضو هیئت‌مدیره {data.get('عضو_index',1)} را وارد کنید (مثال: آقای ... / خانم ...):")
+            label = f"نام عضو هیئت‌مدیره {data.get('عضو_index',1)} را وارد کنید (مثال: آقای ... / خانم ...):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
         if step == 14:
             data.pop("کد ملی بازرس اصلی", None)
             data["step"] = 13
-            context.bot.send_message(chat_id=chat_id, text="نام بازرس اصلی را وارد کنید (مثال: آقای ... / خانم ...):")
+            label = "نام بازرس اصلی را وارد کنید (مثال: آقای ... / خانم ...):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
         if step == 15:
             data.pop("بازرس علی البدل", None)
             data["step"] = 14
-            context.bot.send_message(chat_id=chat_id, text="کد ملی بازرس اصلی را وارد کنید (اعداد فارسی):")
+            label = "کد ملی بازرس اصلی را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
         if step == 16:
             data.pop("کد ملی بازرس علی البدل", None)
             data["step"] = 15
-            context.bot.send_message(chat_id=chat_id, text="نام بازرس علی‌البدل را وارد کنید (مثال: آقای ... / خانم ...):")
+            label = "نام بازرس علی‌البدل را وارد کنید (مثال: آقای ... / خانم ...):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
         if step == 17:
             data.pop("روزنامه کثیرالانتشار", None)
             data["step"] = 16
-            context.bot.send_message(chat_id=chat_id, text="کد ملی بازرس علی‌البدل را وارد کنید (اعداد فارسی):")
+            label = "کد ملی بازرس علی‌البدل را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
         if step == 18:
             data.pop("وکیل", None)
             data["step"] = 17
-            context.bot.send_message(chat_id=chat_id, text="نام روزنامه کثیرالانتشار را وارد کنید:")
+            label = "نام روزنامه کثیرالانتشار را وارد کنید:"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
     
         # سهامداران: 19 تعداد → 20 حلقه
         if step == 19:
             data["step"] = 18
-            context.bot.send_message(chat_id=chat_id, text="نام وکیل (سهامدار یا وکیل رسمی شرکت) را وارد کنید (مثال: آقای ... / خانم ...):")
+            label = "نام وکیل (سهامدار یا وکیل رسمی شرکت) را وارد کنید (مثال: آقای ... / خانم ...):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
     
+        # --- back از حلقه سهامداران (step == 20) ---
         if step == 20:
             i = data.get("سهامدار_index", 1)
+    
+            # حالت 1: الان منتظر "نام سهامدار i" هستیم
             if f"سهامدار {i} نام" not in data:
                 if i == 1:
+                    # برگرد به مرحله تعداد سهامداران
                     data.pop("تعداد سهامداران", None)
                     data["step"] = 19
-                    context.bot.send_message(chat_id=chat_id, text="تعداد سهامداران حاضر را وارد کنید (عدد فارسی):")
+                    label = "تعداد سهامداران حاضر را وارد کنید (عدد فارسی):"
+                    remember_last_question(context, label)         # ✅ مهم
+                    context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                     return
+                # برگرد به تعدادِ سهامِ سهامدار قبلی
                 prev_i = i - 1
                 data["سهامدار_index"] = prev_i
                 data.pop(f"سهامدار {prev_i} تعداد", None)
                 data["step"] = 20
-                context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار {prev_i} را وارد کنید (اعداد فارسی):")
+                label = f"تعداد سهام سهامدار {prev_i} را وارد کنید (اعداد فارسی):"
+                remember_last_question(context, label)             # ✅ مهم
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
+    
+            # حالت 2: الان منتظر "تعداد سهام سهامدار i" هستیم
             if f"سهامدار {i} تعداد" not in data:
                 data.pop(f"سهامدار {i} نام", None)
                 data["step"] = 20
-                context.bot.send_message(chat_id=chat_id, text=f"نام سهامدار {i} را وارد کنید (مثال: آقای ... / خانم ...):")
+                label = f"نام سهامدار {i} را وارد کنید (مثال: آقای ... / خانم ...):"
+                remember_last_question(context, label)             # ✅ مهم
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
     
         if step >= 21:
@@ -2583,7 +2630,9 @@ def handle_back(update: Update, context: CallbackContext):
             data["سهامدار_index"] = maxc
             data.pop(f"سهامدار {maxc} تعداد", None)
             data["step"] = 20
-            context.bot.send_message(chat_id=chat_id, text=f"تعداد سهام سهامدار {maxc} را وارد کنید (اعداد فارسی):")
+            label = f"تعداد سهام سهامدار {maxc} را وارد کنید (اعداد فارسی):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
 
