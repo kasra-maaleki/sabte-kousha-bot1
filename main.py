@@ -932,10 +932,13 @@ def handle_message(update: Update, context: CallbackContext):
         
                         # ... ادامه‌ی ارسال متن و Word مثل قبل ...
                         # (کد ارسال نهایی شما بدون تغییر)
-                        pass
+                        
         
             if step >= 21:
-                context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات ثبت شد. برای شروع مجدد /start را ارسال کنید.", reply_markup=main_keyboard())
+                data["step"] = 21
+                label = "✅ صورتجلسه ارسال شد. برای شروع مجدد /start را بزنید."
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
 
 
