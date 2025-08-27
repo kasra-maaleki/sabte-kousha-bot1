@@ -917,30 +917,54 @@ def handle_message(update: Update, context: CallbackContext):
                         meeting_title = _meeting_title_by_jalali_date(data.get("تاریخ", ""))
                         board_parts = []
                         for j in range(1, data["تعداد اعضای هیئت مدیره"] + 1):
-                            nm = data.get(f"عضو {j} نام", "")
+                            nm  = data.get(f"عضو {j} نام", "")
                             nid = data.get(f"عضو {j} کد ملی", "")
-                            part = nm if not nid else f"{nm} به شماره ملی {nid}"
-                            board_parts.append(part)
+                            board_parts.append(nm if not nid else f"{nm} به شماره ملی {nid}")
                         board_block = " ".join(board_parts).strip()
-        
+                        
+                        # جدول سهامداران
                         holders_lines = []
                         for j in range(1, data["تعداد سهامداران"] + 1):
                             nm = data.get(f"سهامدار {j} نام", "")
                             sh = data.get(f"سهامدار {j} تعداد", "")
                             holders_lines.append(f"{j}\n\t{nm}\t{sh}\t")
                         holders_block = "\n".join(holders_lines)
-        
-                        # ... ادامه‌ی ارسال متن و Word مثل قبل ...
-                        # (کد ارسال نهایی شما بدون تغییر)
                         
-        
-            if step >= 21:
-                data["step"] = 21
-                label = "✅ صورتجلسه ارسال شد. برای شروع مجدد /start را بزنید."
-                remember_last_question(context, label)
-                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
-                return
-
+                        # متن نهایی — (از همان قالب آماده‌ات استفاده کن)
+                        text_out = f"""
+                        {meeting_title} شرکت {data.get("نام شرکت","")} ){نوع_شرکت}(
+                        شماره ثبت شرکت :     {data.get("شماره ثبت","")}
+                        شناسه ملی :      {data.get("شناسه ملی","")}
+                        سرمایه ثبت شده : {data.get("سرمایه","")} ریال
+                        
+                        {meeting_title} شرکت {data.get("نام شرکت","")} ){نوع_شرکت}( ثبت شده به شماره {data.get("شماره ثبت","")} در تاریخ {data.get("تاریخ","")} ساعت {data.get("ساعت","")} با حضور کلیه سهامداران در محل قانونی شرکت تشکیل گردید.
+                        الف: در اجرای ماده 101 لایحه اصلاحی قانون تجارت
+                        ـ  {data.get("مدیر عامل","")}                                   به سمت رئیس جلسه 
+                        ـ  {data.get("نایب رییس","")}                                  به سمت ناظر 1 جلسه 
+                        ـ  {data.get("رییس","")}                                        به سمت ناظر 2 جلسه 
+                        ـ  {data.get("منشی","")}                                        به سمت منشی جلسه انتخاب شدند
+                        ب: در خصوص دستور جلسه، 1ـ انتخاب مدیران 2ـ انتخاب بازرسین 3ـ انتخاب روزنامه کثیرالانتشار
+                        ب ـ 1ـ اعضای هیات مدیره عبارتند از {board_block} برای مدت دو سال انتخاب و با امضاء ذیل صورتجلسه قبولی خود را اعلام می دارند.
+                        
+                        صورت سهامداران حاضر در مجمع عمومی (فوق العاده) مورخه {data.get("تاریخ","")}
+                        {data.get("نام شرکت","")}
+                        ردیف\tنام و نام خانوادگی\tتعداد سهام\tامضا سهامداران
+                        {holders_block}
+                        """
+                        
+                        # ارسال متن (در صورت طولانی بودن، تکه‌تکه)
+                        for i in range(0, len(text_out), 3500):
+                            context.bot.send_message(chat_id=chat_id, text=text_out[i:i+3500], reply_markup=main_keyboard())
+                        
+                        # فایل Word
+                        file_path = generate_word_file(text_out)
+                        with open(file_path, 'rb') as f:
+                            context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه تمدید سمت اعضا.docx")
+                        os.remove(file_path)
+                        
+                        # قفل کردن فرم
+                        data["step"] = 21
+                        return
 
     
         # -------------------------------
