@@ -85,7 +85,18 @@ fields = [
     "مدیر عامل", "نایب رییس", "رییس", "منشی", "آدرس جدید", "کد پستی", "وکیل"
 ]
 
+
 persian_number_fields = ["شماره ثبت", "شناسه ملی", "سرمایه", "کد پستی"]
+
+
+
+NEWSPAPERS = [
+    "اطلاعات","ایران","شرق","جمهوری اسلامی","همشهری",
+    "آفتاب یزد","کیهان","اعتماد","دنیای اقتصاد","فرهیختگان",
+    "جهان صنعت","خراسان","گل","هفت صبح","جوان",
+    "جهان اقتصاد","قدس","فرصت","آرمان امروز"
+]
+
 
 def is_persian_number(text):
     return all('۰' <= ch <= '۹' or ch.isspace() for ch in text)
@@ -142,6 +153,106 @@ def _meeting_title_by_jalali_date(date_str: str) -> str:
         return "مجمع عمومی عادی بطور سالیانه" if 1 <= m <= 4 else "مجمع عمومی عادی بطور فوق العاده"
     except Exception:
         return "مجمع عمومی عادی بطور فوق العاده"
+
+def newspapers_keyboard():
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    btns = []
+    row = []
+    for idx, name in enumerate(NEWSPAPERS, start=1):
+        row.append(InlineKeyboardButton(name, callback_data=f"newspaper:{idx}"))
+        if len(row) == 3:
+            btns.append(row); row = []
+    if row:
+        btns.append(row)
+    # دکمه کنسل در صورت نیاز
+    btns.append([InlineKeyboardButton("❌ انصراف", callback_data="newspaper:cancel")])
+    return InlineKeyboardMarkup(btns)
+
+def send_newspaper_menu(chat_id, context, prompt_text="روزنامهٔ کثیرالانتشار را انتخاب کنید:"):
+    # علامت می‌زنیم که الان منتظر انتخاب روزنامه‌ایم (برای هندلر برگشت/دیباگ مفید است)
+    ctx = context.user_data.setdefault(chat_id, {}) if isinstance(context.user_data, dict) else context.user_data
+    ctx["awaiting"] = "newspaper"
+    context.bot.send_message(chat_id=chat_id, text=prompt_text, reply_markup=newspapers_keyboard())
+
+
+# ——— [B] هندلر انتخاب روزنامه ———
+def handle_newspaper_choice(update: Update, context: CallbackContext):
+    query = update.callback_query
+    chat_id = query.message.chat_id if hasattr(query.message, "chat_id") else query.message.chat.id
+    data = context.user_data.setdefault(chat_id, {})
+    payload = query.data  # مثل "newspaper:5"
+
+    if not payload.startswith("newspaper:"):
+        return
+
+    _, choice = payload.split(":", 1)
+
+    # پاک‌کردن وضعیت تایپ (به ظاهر تلگرام)
+    try:
+        query.answer()
+    except:
+        pass
+
+    # انصراف
+    if choice == "cancel":
+        data.pop("awaiting", None)
+        # اگر خواستی بعد از انصراف دوباره منو نشان دهی، این‌جا صدا بزن
+        context.bot.edit_message_reply_markup(chat_id=chat_id, message_id=query.message.message_id, reply_markup=None)
+        context.bot.send_message(chat_id=chat_id, text="انتخاب روزنامه لغو شد.", reply_markup=main_keyboard())
+        return
+
+    # ایندکس معتبر؟
+    try:
+        idx = int(choice)
+        name = NEWSPAPERS[idx - 1]
+    except Exception:
+        context.bot.send_message(chat_id=chat_id, text="انتخاب نامعتبر روزنامه.", reply_markup=main_keyboard())
+        return
+
+    # ذخیره در فیلد استاندارد
+    data["روزنامه کثیرالانتشار"] = name
+    data.pop("awaiting", None)
+
+    # حذف کیبورد اینلاین پیام قبلی
+    try:
+        context.bot.edit_message_reply_markup(chat_id=chat_id, message_id=query.message.message_id, reply_markup=None)
+    except:
+        pass
+
+    # 🔽 ادامهٔ فرم: بسته به سناریویی که هستیم، یک پله جلو برو و سوال بعدی را بپرس
+    موضوع = data.get("موضوع صورتجلسه") or data.get("موضوع") or context.user_data.get("topic")
+    step = data.get("step", 0)
+
+    # در اکثر سناریوها، انتخاب روزنامه بعد از ذخیره‌شدن باید step یک واحد جلو برود
+    data["step"] = step + 1
+
+    # حالا «سؤال بعدی» را همان‌طور که در کدت انجام می‌دهی، بفرست:
+    try:
+        # مثال عمومی: اگر در سناریوی «تمدید سمت اعضا» بودی و بعد از روزنامه باید «وکیل» بپرسی
+        if موضوع == "تمدید سمت اعضا" and data["step"] == 18 + 1:  # چون روزنامه در قدم 17 گرفته شد
+            label = "نام وکیل (سهامدار یا وکیل رسمی شرکت) را وارد کنید (مثال: آقای ... / خانم ...):"
+            remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+            return
+
+        # اگر سناریوها/استپ‌ها متفاوتند، همین‌جا چند if مثل بالا اضافه کن
+        # یا به شکل عمومی از get_label استفاده کن اگر مرحله بعدی فیلد استانداردی دارد:
+
+        next_label = None
+        # نمونهٔ عمومی: اگر در داده‌هایت نگاشتی از step→label داری:
+        # next_label = get_label("فیلد مرحله بعد")  # بسته به ساختار خودت
+
+        if next_label:
+            remember_last_question(context, next_label)
+            context.bot.send_message(chat_id=chat_id, text=next_label, reply_markup=main_keyboard())
+        else:
+            # fallback امن
+            context.bot.send_message(chat_id=chat_id, text=f"روزنامه انتخاب شد: {name}", reply_markup=main_keyboard())
+
+    except Exception as e:
+        context.bot.send_message(chat_id=chat_id, text=f"ثبت روزنامه انجام شد ولی در ادامه فرم مشکلی بود: {e}", reply_markup=main_keyboard())
+
+
 
 
 def enter_ai_mode_reply(update: Update, context: CallbackContext):
@@ -850,10 +961,10 @@ def handle_message(update: Update, context: CallbackContext):
                     return
                 data["کد ملی بازرس علی البدل"] = text
                 data["step"] = 17
-                label = "نام روزنامه کثیرالانتشار را وارد کنید:"
-                remember_last_question(context, label)
-                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                remember_last_question(context, "روزنامهٔ کثیرالانتشار را انتخاب کنید:")
+                send_newspaper_menu(chat_id, context, "روزنامهٔ کثیرالانتشار را انتخاب کنید:")
                 return
+
         
             if step == 17:
                 data["روزنامه کثیرالانتشار"] = text
@@ -4387,6 +4498,7 @@ def webhook():
 # updater = Updater(...)  # disabled for webhook mode
 
 dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
+dispatcher.add_handler(CallbackQueryHandler(handle_newspaper_choice, pattern=r"^newspaper:"))
 
 # ===== گروه 0: مربوط به AI =====
 dispatcher.add_handler(MessageHandler(Filters.text & Filters.regex(f"^{re.escape(AI_ASK_TEXT)}$"), enter_ai_mode_reply), group=0)
