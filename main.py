@@ -893,94 +893,115 @@ def handle_message(update: Update, context: CallbackContext):
                 i = data.get("سهامدار_index", 1)
                 fa_i = str(i).translate(str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹"))
                 prefix = f"سهامدار {i}"
+            
                 if f"{prefix} نام" not in data:
                     data[f"{prefix} نام"] = text
                     label = f"تعداد سهام سهامدار {fa_i} را وارد کنید (اعداد فارسی):"
                     remember_last_question(context, label)
                     context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                     return
+            
                 elif f"{prefix} تعداد" not in data:
                     if not is_persian_number(text):
                         context.bot.send_message(chat_id=chat_id, text="❗️تعداد سهام را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard())
                         return
+            
                     data[f"{prefix} تعداد"] = text
-                    total = data["تعداد سهامداران"]
-                    if i < total:
+                    total_holders = data["تعداد سهامداران"]
+            
+                    if i < total_holders:
                         data["سهامدار_index"] = i + 1
                         fa_next = str(i+1).translate(str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹"))
                         label = f"نام سهامدار شماره {fa_next} را وارد کنید (مثال: آقای ... / خانم ...):"
                         remember_last_question(context, label)
                         context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                         return
-                    else:
-                        # (اینجا خلاصه و Word را می‌سازی؛ تغییری ندادم)
-                        meeting_title = _meeting_title_by_jalali_date(data.get("تاریخ", ""))
-                        board_parts = []
-                        for j in range(1, data["تعداد اعضای هیئت مدیره"] + 1):
-                            nm  = data.get(f"عضو {j} نام", "")
-                            nid = data.get(f"عضو {j} کد ملی", "")
-                            board_parts.append(nm if not nid else f"{nm} به شماره ملی {nid}")
-                        board_block = " ".join(board_parts).strip()
-                        
-                        # جدول سهامداران
-                        holders_lines = []
-                        for j in range(1, data["تعداد سهامداران"] + 1):
-                            nm = data.get(f"سهامدار {j} نام", "")
-                            sh = data.get(f"سهامدار {j} تعداد", "")
-                            holders_lines.append(f"{j}\n\t{nm}\t{sh}\t")
-                        holders_block = "\n".join(holders_lines)
-                        
-                        # متن نهایی — (از همان قالب آماده‌ات استفاده کن)
+            
+                    # ====== اینجا به آخرین سهامدار رسیدیم — ساخت خروجی نهایی ======
+                    try:
+                        total_board = int(fa_to_en_number(str(data.get("تعداد اعضای هیئت مدیره", 0))))  # ← مشکل اصلی اینجا حل شد
+                        meeting_title = (_meeting_title_by_jalali_date(data.get("تاریخ", "")))
+                        # اگر تابع بالا در کدت نیست، از عنوان پیش‌فرض استفاده کن:
+                    except NameError:
+                        meeting_title = "صورتجلسه مجمع عمومی فوق‌العاده"
+                        total_board = int(fa_to_en_number(str(data.get("تعداد اعضای هیئت مدیره", 0))))
+            
+                    # بلوک اعضای هیئت‌مدیره
+                    board_parts = []
+                    for j in range(1, total_board + 1):
+                        nm  = data.get(f"عضو {j} نام", "")
+                        nid = data.get(f"عضو {j} کد ملی", "")
+                        board_parts.append(nm if not nid else f"{nm} به شماره ملی {nid}")
+                    board_block = " ".join(board_parts).strip()
+            
+                    # جدول سهامداران
+                    holders_lines = []
+                    for j in range(1, data["تعداد سهامداران"] + 1):
+                        nm = data.get(f"سهامدار {j} نام", "")
+                        sh = data.get(f"سهامدار {j} تعداد", "")
+                        holders_lines.append(f"{j}\n\t{nm}\t{sh}\t")
+                    holders_block = "\n".join(holders_lines)
+            
+                    # ساخت متن خروجی
+                    try:
                         text_out = f"""
-                        {meeting_title} شرکت {data.get("نام شرکت","")} ){نوع_شرکت}(
-                        شماره ثبت شرکت :     {data.get("شماره ثبت","")}
-                        شناسه ملی :      {data.get("شناسه ملی","")}
-                        سرمایه ثبت شده : {data.get("سرمایه","")} ریال
-                        
-                        {meeting_title} شرکت {data.get("نام شرکت","")} ){نوع_شرکت}( ثبت شده به شماره {data.get("شماره ثبت","")} در تاریخ {data.get("تاریخ","")} ساعت {data.get("ساعت","")} با حضور کلیه سهامداران در محل قانونی شرکت تشکیل گردید.
-                        الف: در اجرای ماده 101 لایحه اصلاحی قانون تجارت
-                        ـ  {data.get("مدیر عامل","")}                                   به سمت رئیس جلسه 
-                        ـ  {data.get("نایب رییس","")}                                  به سمت ناظر 1 جلسه 
-                        ـ  {data.get("رییس","")}                                        به سمت ناظر 2 جلسه 
-                        ـ  {data.get("منشی","")}                                        به سمت منشی جلسه انتخاب شدند
-                        ب: در خصوص دستور جلسه، 1ـ انتخاب مدیران 2ـ انتخاب بازرسین 3ـ انتخاب روزنامه کثیرالانتشار
-                        ب ـ 1ـ اعضای هیات مدیره عبارتند از {board_block} برای مدت دو سال انتخاب و با امضاء ذیل صورتجلسه قبولی خود را اعلام می دارند. 
-                        ب ـ 2ـ با رعایت ماده 147 لایحه اصلاحی قانون تجارت {data.get("بازرس اصلی","")} به شماره ملی {data.get("کد ملی بازرس اصلی","")} به سمت بازرس اصلی و {data.get("بازرس علی البدل","")} به شماره ملی {data.get("کد ملی بازرس علی البدل","")} به سمت بازرس علی البدل برای مدت یک سال مالی انتخاب شدند.
-                        ب ـ 3ـ روزنامه کثیرالانتشار {data.get("روزنامه کثیرالانتشار","")} جهت نشر آگهی های شرکت انتخاب شد.
-                        ج: اینجانبان اعضاء هیات مدیره و بازرسین ضمن قبولی سمت خود اقرار می نمائیم که هیچگونه سوء پیشینه کیفری نداشته و ممنوعیت اصل 141 قانون اساسی و مواد 111 و 147 لایحه اصلاحی قانون تجارت را نداریم. 
-                        د: به {data.get("وکیل","")} احدی از سهامداران یا وکیل رسمی شرکت وکالت داده می شود که ضمن مراجعه به اداره ثبت شرکت ها نسبت به ثبت صورتجلسه و پرداخت حق الثبت و امضاء ذیل دفاتر ثبت اقدام نماید.
-                        امضاء اعضاء هیات رئیسه: 
-                        رئیس جلسه :  {data.get("مدیر عامل","")}                                   ناظر1 جلسه : {data.get("نایب رییس","")}                               
-                        
-                        
-                        ناظر2جلسه : {data.get("رییس","")}                                       منشی جلسه: {data.get("منشی","")}
-                        
-                        امضاء اعضای هیات مدیره:
-                        { "                           ".join([data.get(f"عضو {k} نام","") for k in range(1, total_board+1)]) }
-                        امضاء بازرسین:
-                        {data.get("بازرس اصلی","")}                                    {data.get("بازرس علی البدل","")}
-                        
-                        
-                        
-                        صورت سهامداران حاضر در {meeting_title} مورخه {data.get("تاریخ","")}
-                        {data.get("نام شرکت","")}
-                        ردیف\tنام و نام خانوادگی\tتعداد سهام\tامضا سهامداران
-                        {holders_block}
-                        """
-                        
-                        # ارسال متن (در صورت طولانی بودن، تکه‌تکه)
-                        for i in range(0, len(text_out), 3500):
-                            context.bot.send_message(chat_id=chat_id, text=text_out[i:i+3500], reply_markup=main_keyboard())
-                        
-                        # فایل Word
-                        file_path = generate_word_file(text_out)
+            {meeting_title} شرکت {data.get("نام شرکت","")} ){نوع_شرکت}(
+            شماره ثبت شرکت :     {data.get("شماره ثبت","")}
+            شناسه ملی :      {data.get("شناسه ملی","")}
+            سرمایه ثبت شده : {data.get("سرمایه","")} ریال
+            
+            {meeting_title} شرکت {data.get("نام شرکت","")} ){نوع_شرکت}( ثبت شده به شماره {data.get("شماره ثبت","")} در تاریخ {data.get("تاریخ","")} ساعت {data.get("ساعت","")} با حضور کلیه سهامداران در محل قانونی شرکت تشکیل گردید.
+            الف: در اجرای ماده 101 لایحه اصلاحی قانون تجارت
+            ـ  {data.get("مدیر عامل","")}                                   به سمت رئیس جلسه 
+            ـ  {data.get("نایب رییس","")}                                  به سمت ناظر 1 جلسه 
+            ـ  {data.get("رییس","")}                                        به سمت ناظر 2 جلسه 
+            ـ  {data.get("منشی","")}                                        به سمت منشی جلسه انتخاب شدند
+            ب: در خصوص دستور جلسه، 1ـ انتخاب مدیران 2ـ انتخاب بازرسین 3ـ انتخاب روزنامه کثیرالانتشار
+            ب ـ 1ـ اعضای هیات مدیره عبارتند از {board_block} برای مدت دو سال انتخاب و با امضاء ذیل صورتجلسه قبولی خود را اعلام می دارند. 
+            ب ـ 2ـ با رعایت ماده 147 لایحه اصلاحی قانون تجارت {data.get("بازرس اصلی","")} به شماره ملی {data.get("کد ملی بازرس اصلی","")} به سمت بازرس اصلی و {data.get("بازرس علی البدل","")} به شماره ملی {data.get("کد ملی بازرس علی البدل","")} به سمت بازرس علی البدل برای مدت یک سال مالی انتخاب شدند.
+            ب ـ 3ـ روزنامه کثیرالانتشار {data.get("روزنامه کثیرالانتشار","")} جهت نشر آگهی های شرکت انتخاب شد.
+            ج: اینجانبان اعضاء هیات مدیره و بازرسین ضمن قبولی سمت خود اقرار می نمائیم که هیچگونه سوء پیشینه کیفری نداشته و ممنوعیت اصل 141 قانون اساسی و مواد 111 و 147 لایحه اصلاحی قانون تجارت را نداریم. 
+            د: به {data.get("وکیل","")} احدی از سهامداران یا وکیل رسمی شرکت وکالت داده می شود که ضمن مراجعه به اداره ثبت شرکت ها نسبت به ثبت صورتجلسه و پرداخت حق الثبت و امضاء ذیل دفاتر ثبت اقدام نماید.
+            امضاء اعضاء هیات رئیسه: 
+            رئیس جلسه :  {data.get("مدیر عامل","")}                                   ناظر1 جلسه : {data.get("نایب رییس","")}                               
+            
+            ناظر2جلسه : {data.get("رییس","")}                                       منشی جلسه: {data.get("منشی","")}
+            
+            امضاء اعضای هیات مدیره:
+            { "                           ".join([data.get(f"عضو {k} نام","") for k in range(1, total_board+1)]) }
+            امضاء بازرسین:
+            {data.get("بازرس اصلی","")}                                    {data.get("بازرس علی البدل","")}
+            
+            صورت سهامداران حاضر در {meeting_title} مورخه {data.get("تاریخ","")}
+            {data.get("نام شرکت","")}
+            ردیف\tنام و نام خانوادگی\tتعداد سهام\tامضا سهامداران
+            {holders_block}
+            """
+                    except Exception as e:
+                        context.bot.send_message(chat_id=chat_id, text=f"❗️خطا در ساخت متن: {e}", reply_markup=main_keyboard())
+                        data["step"] = 20
+                        return
+            
+                    # ارسال متن به صورت تکه‌تکه (حد ۴۰۹۶ کاراکتر تلگرام)
+                    try:
+                        for ofs in range(0, len(text_out), 3500):
+                            context.bot.send_message(chat_id=chat_id, text=text_out[ofs:ofs+3500], reply_markup=main_keyboard())
+                    except Exception as e:
+                        context.bot.send_message(chat_id=chat_id, text=f"❗️خطا در ارسال متن: {e}", reply_markup=main_keyboard())
+            
+                    # فایل Word
+                    try:
+                        file_path = generate_word_file(text_out)  # فرض بر این است که قبلاً در پروژه‌ات داریش
                         with open(file_path, 'rb') as f:
                             context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه تمدید سمت اعضا.docx")
                         os.remove(file_path)
-                        
-                        # قفل کردن فرم
-                        data["step"] = 21
-                        return
+                    except Exception as e:
+                        context.bot.send_message(chat_id=chat_id, text=f"❗️خطا در ساخت/ارسال فایل Word: {e}", reply_markup=main_keyboard())
+            
+                    # قفل کردن فرم
+                    data["step"] = 21
+                    return
+
 
     
         # -------------------------------
