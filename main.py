@@ -229,7 +229,7 @@ def handle_newspaper_choice(update: Update, context: CallbackContext):
     # حالا «سؤال بعدی» را همان‌طور که در کدت انجام می‌دهی، بفرست:
     try:
         # مثال عمومی: اگر در سناریوی «تمدید سمت اعضا» بودی و بعد از روزنامه باید «وکیل» بپرسی
-        if موضوع == "تمدید سمت اعضا" and data["step"] == 18 + 1:  # چون روزنامه در قدم 17 گرفته شد
+        if موضوع == "تمدید سمت اعضا" and data["step"] == 18:  # چون روزنامه در قدم 17 گرفته شد
             label = "نام وکیل (سهامدار یا وکیل رسمی شرکت) را وارد کنید (مثال: آقای ... / خانم ...):"
             remember_last_question(context, label)
             context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
