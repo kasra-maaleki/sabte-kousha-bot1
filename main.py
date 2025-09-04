@@ -179,27 +179,23 @@ def send_newspaper_menu(chat_id, context, prompt_text="روزنامهٔ کثیر
 def handle_newspaper_choice(update: Update, context: CallbackContext):
     query = update.callback_query
     chat_id = query.message.chat_id if hasattr(query.message, "chat_id") else query.message.chat.id
-    data = context.user_data.setdefault(chat_id, {})
     payload = query.data  # مثل "newspaper:5"
-
     if not payload.startswith("newspaper:"):
         return
 
+    try: query.answer()
+    except: pass
+
     _, choice = payload.split(":", 1)
 
-    # پاک‌ کردن وضعیت تایپ/کلیک
-    try:
-        query.answer()
-    except:
-        pass
+    # ← دیکشنری وضعیتِ اصلی پروژه
+    d = user_data.setdefault(chat_id, {})
 
-    # انصراف
     if choice == "cancel":
-        data.pop("awaiting", None)
-        try:
-            context.bot.edit_message_reply_markup(chat_id=chat_id, message_id=query.message.message_id, reply_markup=None)
-        except:
-            pass
+        # هم در user_data و هم (در صورت استفاده) در context.user_data پاک کن
+        d.pop("awaiting", None)
+        try: context.bot.edit_message_reply_markup(chat_id=chat_id, message_id=query.message.message_id, reply_markup=None)
+        except: pass
         context.bot.send_message(chat_id=chat_id, text="انتخاب روزنامه لغو شد.", reply_markup=main_keyboard())
         return
 
@@ -211,9 +207,9 @@ def handle_newspaper_choice(update: Update, context: CallbackContext):
         context.bot.send_message(chat_id=chat_id, text="انتخاب نامعتبر روزنامه.", reply_markup=main_keyboard())
         return
 
-    # ذخیره انتخاب
-    data["روزنامه کثیرالانتشار"] = name
-    data.pop("awaiting", None)
+    # ذخیره در user_data (همان جایی که بقیهٔ سناریو می‌خوانند)
+    d["روزنامه کثیرالانتشار"] = name
+    d.pop("awaiting", None)
 
     # حذف کیبورد اینلاین پیام قبلی
     try:
@@ -221,33 +217,26 @@ def handle_newspaper_choice(update: Update, context: CallbackContext):
     except:
         pass
 
-    # ادامهٔ فرم
-    موضوع = data.get("موضوع صورتجلسه") or data.get("موضوع") or context.user_data.get("topic")
-    step = data.get("step", 0)
+    موضوع = d.get("موضوع صورتجلسه") or d.get("موضوع") or context.user_data.get("topic")
+    step = d.get("step", 0)
 
-    # بعد از انتخاب روزنامه، یک پله جلو برو
-    data["step"] = step + 1
+    # از 17 → 18
+    d["step"] = step + 1
 
     try:
-        # ✅ فیکس اصلی: بلافاصله سؤال «وکیل» را در step 18 بپرس
-        if موضوع == "تمدید سمت اعضا" and data["step"] == 18:
+        # ✅ بلافاصله بعد از انتخاب روزنامه، سؤال «وکیل» (step=18) را بپرس
+        if موضوع == "تمدید سمت اعضا" and d["step"] == 18:
             label = "نام وکیل (سهامدار یا وکیل رسمی شرکت) را وارد کنید (مثال: آقای ... / خانم ...):"
             if 'remember_last_question' in globals():
                 remember_last_question(context, label)
             context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # مسیرهای دیگر را در صورت نیاز اینجا هندل کن…
-
         # فالبک امن
         context.bot.send_message(chat_id=chat_id, text=f"روزنامه انتخاب شد: {name}", reply_markup=main_keyboard())
 
     except Exception as e:
-        context.bot.send_message(
-            chat_id=chat_id,
-            text=f"ثبت روزنامه انجام شد ولی در ادامه فرم مشکلی بود: {e}",
-            reply_markup=main_keyboard()
-        )
+        context.bot.send_message(chat_id=chat_id, text=f"ثبت روزنامه انجام شد ولی در ادامه فرم مشکلی بود: {e}", reply_markup=main_keyboard())
 
 
 
@@ -3739,7 +3728,10 @@ def button_handler(update: Update, context: CallbackContext):
     query = update.callback_query
 
     # ۱) رشته‌ی کال‌بک را جدا نگه دار
-    payload = query.data  # مثل "newspaper:3" یا "topic:extend_roles"
+    payload = query.data or ""
+    if payload.startswith("newspaper:"):
+        return  # بگذار handle_newspaper_choice رسیدگی کند
+
 
     chat_id = query.message.chat_id
     query.answer()
