@@ -175,7 +175,7 @@ def send_newspaper_menu(chat_id, context, prompt_text="روزنامهٔ کثیر
     context.bot.send_message(chat_id=chat_id, text=prompt_text, reply_markup=newspapers_keyboard())
 
 
-# ——— [B] هندلر انتخاب روزنامه ———
+# ——— [B] هندلر انتخاب روزنامه (پچ‌شده) ———
 def handle_newspaper_choice(update: Update, context: CallbackContext):
     query = update.callback_query
     chat_id = query.message.chat_id if hasattr(query.message, "chat_id") else query.message.chat.id
@@ -187,7 +187,7 @@ def handle_newspaper_choice(update: Update, context: CallbackContext):
 
     _, choice = payload.split(":", 1)
 
-    # پاک‌کردن وضعیت تایپ (به ظاهر تلگرام)
+    # پاک‌ کردن وضعیت تایپ/کلیک
     try:
         query.answer()
     except:
@@ -196,8 +196,10 @@ def handle_newspaper_choice(update: Update, context: CallbackContext):
     # انصراف
     if choice == "cancel":
         data.pop("awaiting", None)
-        # اگر خواستی بعد از انصراف دوباره منو نشان دهی، این‌جا صدا بزن
-        context.bot.edit_message_reply_markup(chat_id=chat_id, message_id=query.message.message_id, reply_markup=None)
+        try:
+            context.bot.edit_message_reply_markup(chat_id=chat_id, message_id=query.message.message_id, reply_markup=None)
+        except:
+            pass
         context.bot.send_message(chat_id=chat_id, text="انتخاب روزنامه لغو شد.", reply_markup=main_keyboard())
         return
 
@@ -209,7 +211,7 @@ def handle_newspaper_choice(update: Update, context: CallbackContext):
         context.bot.send_message(chat_id=chat_id, text="انتخاب نامعتبر روزنامه.", reply_markup=main_keyboard())
         return
 
-    # ذخیره در فیلد استاندارد
+    # ذخیره انتخاب
     data["روزنامه کثیرالانتشار"] = name
     data.pop("awaiting", None)
 
@@ -219,39 +221,33 @@ def handle_newspaper_choice(update: Update, context: CallbackContext):
     except:
         pass
 
-    # 🔽 ادامهٔ فرم: بسته به سناریویی که هستیم، یک پله جلو برو و سوال بعدی را بپرس
+    # ادامهٔ فرم
     موضوع = data.get("موضوع صورتجلسه") or data.get("موضوع") or context.user_data.get("topic")
     step = data.get("step", 0)
 
-    # در اکثر سناریوها، انتخاب روزنامه بعد از ذخیره‌شدن باید step یک واحد جلو برود
+    # بعد از انتخاب روزنامه، یک پله جلو برو
     data["step"] = step + 1
 
-    # حالا «سؤال بعدی» را همان‌طور که در کدت انجام می‌دهی، بفرست:
     try:
-        # مثال عمومی: اگر در سناریوی «تمدید سمت اعضا» بودی و بعد از روزنامه باید «وکیل» بپرسی
-        if موضوع == "تمدید سمت اعضا" and data["step"] == 18:  # چون روزنامه در قدم 17 گرفته شد
+        # ✅ فیکس اصلی: بلافاصله سؤال «وکیل» را در step 18 بپرس
+        if موضوع == "تمدید سمت اعضا" and data["step"] == 18:
             label = "نام وکیل (سهامدار یا وکیل رسمی شرکت) را وارد کنید (مثال: آقای ... / خانم ...):"
-            remember_last_question(context, label)
+            if 'remember_last_question' in globals():
+                remember_last_question(context, label)
             context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
 
-        # اگر سناریوها/استپ‌ها متفاوتند، همین‌جا چند if مثل بالا اضافه کن
-        # یا به شکل عمومی از get_label استفاده کن اگر مرحله بعدی فیلد استانداردی دارد:
+        # مسیرهای دیگر را در صورت نیاز اینجا هندل کن…
 
-        next_label = None
-        # نمونهٔ عمومی: اگر در داده‌هایت نگاشتی از step→label داری:
-        # next_label = get_label("فیلد مرحله بعد")  # بسته به ساختار خودت
-
-        if next_label:
-            remember_last_question(context, next_label)
-            context.bot.send_message(chat_id=chat_id, text=next_label, reply_markup=main_keyboard())
-        else:
-            # fallback امن
-            context.bot.send_message(chat_id=chat_id, text=f"روزنامه انتخاب شد: {name}", reply_markup=main_keyboard())
+        # فالبک امن
+        context.bot.send_message(chat_id=chat_id, text=f"روزنامه انتخاب شد: {name}", reply_markup=main_keyboard())
 
     except Exception as e:
-        context.bot.send_message(chat_id=chat_id, text=f"ثبت روزنامه انجام شد ولی در ادامه فرم مشکلی بود: {e}", reply_markup=main_keyboard())
-
+        context.bot.send_message(
+            chat_id=chat_id,
+            text=f"ثبت روزنامه انجام شد ولی در ادامه فرم مشکلی بود: {e}",
+            reply_markup=main_keyboard()
+        )
 
 
 
