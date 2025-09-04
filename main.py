@@ -3737,15 +3737,23 @@ def handle_back(update: Update, context: CallbackContext):
 
 def button_handler(update: Update, context: CallbackContext):
     query = update.callback_query
-    data = query.data
 
+    # ۱) رشته‌ی کال‌بک را جدا نگه دار
+    payload = query.data  # مثل "newspaper:3" یا "topic:extend_roles"
+
+    chat_id = query.message.chat_id
+    query.answer()
+
+    # ۲) از اینجا به بعد، 'data' دوباره همان دیکشنری وضعیت کاربر است
+    data = user_data.setdefault(chat_id, {})
+
+
+    
     # اگر کال‌بکِ مخصوص خروج از AI بود یا هنوز داخل AI هستیم، این هندلر کاری نکند
     if data == AI_RESUME or context.user_data.get("ai_mode"):
         return
 
-    chat_id = query.message.chat_id
-    query.answer()
-    user_data.setdefault(chat_id, {})
+
 
     if "موضوع صورتجلسه" not in user_data.get(chat_id, {}):
         # اولین کلیک روی دکمه‌ی موضوع
