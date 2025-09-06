@@ -262,25 +262,59 @@ def send_thank_you_message_chatid(chat_id, context,
                                   phone_ir=None, phone_intl=None,
                                   wa_text=None, brand=None):
     phone_ir = phone_ir or CONTACT_MOBILE_IR
-    phone_intl = phone_intl or CONTACT_MOBILE_INTL
+    phone_intl = phone_intl or CONTACT_MOBILE_INTL  # بدون صفر
     wa_text = wa_text if wa_text is not None else DEFAULT_WHATSAPP_TEXT
     brand = brand or THANKYOU_BRAND
 
-    contact_html = build_contact_html(phone_ir, phone_intl, wa_text)
-    text = (
-        f"🎉 صورتجلسه شما آماده و ارسال شد!\n"
+    # متن پیام پایانی (شماره بین‌المللی با + برای لمس مستقیم روی موبایل)
+    msg = (
+        "🎉 صورتجلسه شما آماده و ارسال شد!\n"
         f"از اینکه {brand} رو انتخاب کردید سپاسگزاریم 🙏\n\n"
-        f"☎️ برای مشاوره بیشتر یا ثبت صورتجلسه جدید، از اینجا با ما در ارتباط باشید:\n"
-        f"{contact_html}"
+        "☎️ برای مشاوره بیشتر یا ثبت صورتجلسه:\n"
+        f"• شماره تماس: +{phone_intl}\n"
+        f"• شماره داخلی: {phone_ir}\n"
+        "• یا با یک کلیک در واتساپ پیام بدهید 👇"
     )
 
+    # دکمه واتساپ (http/https تنها اسکیماهای مجاز)
+    wa_url = f"https://wa.me/{phone_intl}"
+    if wa_text:
+        wa_url += f"?text={quote(wa_text)}"
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("💬 چت در واتساپ", url=wa_url)]
+    ])
+
+    # 1) ارسال پیام تشکر + دکمه
     context.bot.send_message(
-        chat_id,
-        text,
-        parse_mode="HTML",
+        chat_id=chat_id,
+        text=msg,
         disable_web_page_preview=True
     )
 
+    # 2) ارسال Contact واقعی (قابل لمس و ذخیره در مخاطبین)
+    try:
+        context.bot.send_contact(
+            chat_id=chat_id,
+            phone_number=f"+{phone_intl}",  # حتماً با + شروع شود
+            first_name=brand,
+            last_name="پشتیبانی"
+            # می‌توانی vCard هم اضافه کنی اگر خواستی
+        )
+    except Exception:
+        # اگر کاربر اجازه دریافت مخاطب نداده بود، مشکلی نیست
+        pass
+
+    # 3) ارسال دکمه واتساپ به‌صورت جدا (اختیاری؛ اگر می‌خواهی کنار Contact هم باشد)
+    try:
+        context.bot.send_message(
+            chat_id=chat_id,
+            text="برای شروع چت در واتساپ روی دکمه زیر بزنید:",
+            reply_markup=keyboard,
+            disable_web_page_preview=True
+        )
+    except Exception:
+        pass
+        
 
 
 def enter_ai_mode_reply(update: Update, context: CallbackContext):
