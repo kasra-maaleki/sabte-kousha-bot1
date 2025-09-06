@@ -258,12 +258,9 @@ def build_contact_html(phone_ir: str, phone_intl: str, wa_text: str = "") -> str
         wa_link = f"<a href='{wa_base}'>چت در واتساپ</a>"
     return f"📞 {tel_link}\n💬 {wa_link}"
 
-def send_thank_you_message(update, context, phone_ir=None, phone_intl=None, wa_text=None, brand=None):
-    """
-    پیام پایانی تشکر + لینک‌های تماس/واتساپ را می‌فرستد.
-    ورودی‌های None → از مقادیر پیش‌فرض بالا استفاده می‌شود.
-    """
-    chat_id = update.effective_chat.id
+def send_thank_you_message_chatid(chat_id, context,
+                                  phone_ir=None, phone_intl=None,
+                                  wa_text=None, brand=None):
     phone_ir = phone_ir or CONTACT_MOBILE_IR
     phone_intl = phone_intl or CONTACT_MOBILE_INTL
     wa_text = wa_text if wa_text is not None else DEFAULT_WHATSAPP_TEXT
@@ -283,6 +280,7 @@ def send_thank_you_message(update, context, phone_ir=None, phone_intl=None, wa_t
         parse_mode="HTML",
         disable_web_page_preview=True
     )
+
 
 
 def enter_ai_mode_reply(update: Update, context: CallbackContext):
@@ -4328,7 +4326,7 @@ def send_summary(chat_id, context):
         file_path = generate_word_file(text)
         with open(file_path, 'rb') as f:
             context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه تغییر نام شرکت مسئولیت محدود.docx")
-        send_thank_you_message(update, context)
+        send_thank_you_message_chatid(chat_id, context)
         os.remove(file_path)
         return
 
@@ -4376,7 +4374,7 @@ def send_summary(chat_id, context):
         file_path = generate_word_file(text)
         with open(file_path, 'rb') as f:
             context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه انحلال مسئولیت محدود.docx")
-        send_thank_you_message(update, context)
+        send_thank_you_message_chatid(chat_id, context)
         os.remove(file_path)
         return
 
