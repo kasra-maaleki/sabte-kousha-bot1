@@ -17,6 +17,7 @@ import re
 from collections import defaultdict
 from telegram.ext import Dispatcher
 from telegram import ReplyKeyboardRemove
+from urllib.parse import quote
 
 
 TOKEN = os.getenv("BOT_TOKEN")
@@ -38,6 +39,13 @@ user_data = {}
 BACK_BTN = "⬅️ بازگشت"
 AI_RESUME   = "AI_RESUME"   # کال‌بک دکمه‌ی بازگشت از AI
 AI_ASK_TEXT = "❓ سؤال دارم"
+
+# --- Contact Config (ویرایش کن) ---
+CONTACT_MOBILE_IR = "09128687292"     # شماره موبایل برای تماس (فرمت داخلی ایران)
+CONTACT_MOBILE_INTL = "989128687292"  # همان شماره ولی بدون صفر و با 98 برای واتساپ
+DEFAULT_WHATSAPP_TEXT = "سلام، برای راهنمایی و ثبت صورتجلسه راهنمایی می‌خواستم."
+THANKYOU_BRAND = "ثبت کوشا"           # نام برند شما
+
 
 GROQ_MODEL_QUALITY = "llama-3.3-70b-versatile" # کیفیت بالاتر
 GROQ_MODEL = GROQ_MODEL_QUALITY
@@ -238,6 +246,43 @@ def handle_newspaper_choice(update: Update, context: CallbackContext):
     except Exception as e:
         context.bot.send_message(chat_id=chat_id, text=f"ثبت روزنامه انجام شد ولی در ادامه فرم مشکلی بود: {e}", reply_markup=main_keyboard())
 
+def build_contact_html(phone_ir: str, phone_intl: str, wa_text: str = "") -> str:
+    """
+    خروجی: متن HTML شامل لینک تماس مستقیم (tel:) و واتساپ (wa.me)
+    """
+    tel_link = f"<a href='tel:{phone_ir}'>تماس تلفنی</a>"
+    wa_base = f"https://wa.me/{phone_intl}"
+    if wa_text:
+        wa_link = f"<a href='{wa_base}?text={quote(wa_text)}'>چت در واتساپ</a>"
+    else:
+        wa_link = f"<a href='{wa_base}'>چت در واتساپ</a>"
+    return f"📞 {tel_link}\n💬 {wa_link}"
+
+def send_thank_you_message(update, context, phone_ir=None, phone_intl=None, wa_text=None, brand=None):
+    """
+    پیام پایانی تشکر + لینک‌های تماس/واتساپ را می‌فرستد.
+    ورودی‌های None → از مقادیر پیش‌فرض بالا استفاده می‌شود.
+    """
+    chat_id = update.effective_chat.id
+    phone_ir = phone_ir or CONTACT_MOBILE_IR
+    phone_intl = phone_intl or CONTACT_MOBILE_INTL
+    wa_text = wa_text if wa_text is not None else DEFAULT_WHATSAPP_TEXT
+    brand = brand or THANKYOU_BRAND
+
+    contact_html = build_contact_html(phone_ir, phone_intl, wa_text)
+    text = (
+        f"🎉 صورتجلسه شما آماده و ارسال شد!\n"
+        f"از اینکه {brand} رو انتخاب کردید سپاسگزاریم 🙏\n\n"
+        f"☎️ برای مشاوره بیشتر یا ثبت صورتجلسه جدید، از اینجا با ما در ارتباط باشید:\n"
+        f"{contact_html}"
+    )
+
+    context.bot.send_message(
+        chat_id,
+        text,
+        parse_mode="HTML",
+        disable_web_page_preview=True
+    )
 
 
 def enter_ai_mode_reply(update: Update, context: CallbackContext):
@@ -4283,6 +4328,7 @@ def send_summary(chat_id, context):
         file_path = generate_word_file(text)
         with open(file_path, 'rb') as f:
             context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه تغییر نام شرکت مسئولیت محدود.docx")
+        send_thank_you_message(update, context)
         os.remove(file_path)
         return
 
@@ -4330,6 +4376,7 @@ def send_summary(chat_id, context):
         file_path = generate_word_file(text)
         with open(file_path, 'rb') as f:
             context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه انحلال مسئولیت محدود.docx")
+        send_thank_you_message(update, context)
         os.remove(file_path)
         return
 
