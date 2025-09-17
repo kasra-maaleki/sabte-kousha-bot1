@@ -272,7 +272,6 @@ def send_thank_you_message_chatid(chat_id, context,
         f"از اینکه {brand} رو انتخاب کردید سپاسگزاریم 🙏\n\n"
         "☎️ برای مشاوره بیشتر یا ثبت صورتجلسه:\n"
         f"• شماره تماس: +{phone_intl}\n"
-        "• یا با یک کلیک در واتساپ پیام بدهید 👇"
     )
 
     # دکمه واتساپ (http/https تنها اسکیماهای مجاز)
@@ -307,6 +306,7 @@ def send_thank_you_message_chatid(chat_id, context,
     try:
         context.bot.send_message(
             chat_id=chat_id,
+            text="برای شروع چت در واتساپ روی دکمه زیر بزنید:",
             reply_markup=keyboard,
             disable_web_page_preview=True
         )
