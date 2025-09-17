@@ -18,6 +18,14 @@ from collections import defaultdict
 from telegram.ext import Dispatcher
 from telegram import ReplyKeyboardRemove
 from urllib.parse import quote
+from otp_sms import (
+    start_phone_verification,
+    handle_contact_or_phone,
+    handle_otp_input,
+    otp_buttons_handler,
+)
+from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, Filters
+from otp_sms import start_phone_verification
 
 
 TOKEN = os.getenv("BOT_TOKEN")
@@ -478,14 +486,29 @@ def send_company_type_menu(chat_id, context):
     
 def start(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
-    user_data[chat_id] = {"step": 0}
+
+    # وضعیت کاربر را بساز/بازیابی کن
+    d = user_data.setdefault(chat_id, {})
+    # اگر جای دیگری step تنظیم می‌کنی، این خط را حذف نکن:
+    d.setdefault("step", 0)
+
+    # پیام خوش‌آمد
     update.message.reply_text(
         "به خدمات ثبتی کوشا خوش آمدید 🙏🏼\n"
         "در کمتر از چند دقیقه، صورتجلسه رسمی و دقیق شرکت خود را آماده دریافت خواهید کرد.\n"
         "همه‌چیز طبق آخرین قوانین ثبت شرکت‌ها تنظیم می‌شود.",
         reply_markup=main_keyboard()
     )
-    send_topic_menu(chat_id, context)
+
+    # اگر قبلاً احراز شده، مستقیم برو منوی موضوعات
+    if d.get("verified"):
+        send_topic_menu(chat_id, context)
+        return
+
+    # در غیر این صورت، همین حالا احراز هویت با پیامک را شروع کن
+    # (شماره را می‌گیرد، کد می‌فرستد، و بعد از تأیید می‌توانی در همان هندلر ادامه سناریو بدهی)
+    start_phone_verification(update, context)
+
 
 def start_extend_roles_flow(update, context):
     chat_id = update.effective_chat.id
@@ -4584,6 +4607,12 @@ dispatcher.add_handler(CommandHandler("ai", cmd_ai), group=1)
 dispatcher.add_handler(CommandHandler("start", start), group=1)
 dispatcher.add_handler(CallbackQueryHandler(button_handler, pattern=fr"^(?!{AI_RESUME}$).+"),group=1)
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message), group=1)
+
+dispatcher.add_handler(CommandHandler("verify", start_phone_verification))
+dispatcher.add_handler(MessageHandler(Filters.contact, handle_contact_or_phone))
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_contact_or_phone)) # فقط وقتی state=ask_phone عمل می‌کند
+dispatcher.add_handler(MessageHandler(Filters.regex(r"^\d+$") & ~Filters.command, handle_otp_input))
+dispatcher.add_handler(CallbackQueryHandler(otp_buttons_handler, pattern=r"^otp:(?:resend|change|cancel)$"))
 
 
 def remember_last_question(context, label: str):
