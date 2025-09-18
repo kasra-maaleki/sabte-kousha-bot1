@@ -457,6 +457,7 @@ def send_topic_menu(chat_id, context):
         [InlineKeyboardButton("🏢 تغییر آدرس", callback_data='تغییر آدرس')],
         [InlineKeyboardButton("🔄 نقل و انتقال سهام", callback_data='نقل و انتقال سهام')],
         [InlineKeyboardButton("🧾 تغییر موضوع فعالیت", callback_data='تغییر موضوع فعالیت')],
+        [InlineKeyboardButton("👔 انتخاب مدیران", callback_data='topic:board_election')],
         [InlineKeyboardButton("⏳ تمدید سمت اعضا", callback_data="topic:extend_roles")],
         [InlineKeyboardButton("📈 افزایش سرمایه", callback_data='افزایش سرمایه')],
         [InlineKeyboardButton("📉 کاهش سرمایه", callback_data='کاهش سرمایه')],
@@ -600,6 +601,255 @@ def cmd_ai(update, context):
     except Exception as e:
         update.message.reply_text("❌ خطا در دریافت پاسخ از Groq.")
         print("GROQ ERROR:", e)
+
+
+role_map = {
+    "chair":       "رئیس هیئت‌مدیره",
+    "vice":        "نایب رئیس هیئت‌مدیره",
+    "ceo":         "مدیرعامل",
+    "member":      "عضو هیئت‌مدیره",
+    "ceo_chair":   "مدیرعامل و رئیس هیئت‌مدیره",
+    "ceo_vice":    "مدیرعامل و نایب رئیس هیئت‌مدیره",
+    "ceo_member":  "مدیرعامل و عضو هیئت‌مدیره",
+}
+d[f"عضو {i} سمت کد"] = code
+d[f"عضو {i} سمت"]    = role_map.get(code, "عضو هیئت‌مدیره")
+
+
+
+# --- [A] کیبورد انتخاب سمت عضو هیئت‌مدیره ---
+def roles_keyboard(member_index: int):
+    kb = [
+        [InlineKeyboardButton("رئیس هیئت‌مدیره", callback_data=f"role:{member_index}:chair")],
+        [InlineKeyboardButton("نایب رئیس هیئت‌مدیره", callback_data=f"role:{member_index}:vice")],
+        [InlineKeyboardButton("مدیرعامل", callback_data=f"role:{member_index}:ceo")],
+        [InlineKeyboardButton("عضو هیئت‌مدیره", callback_data=f"role:{member_index}:member")],
+        [InlineKeyboardButton("مدیرعامل و رئیس هیئت‌مدیره",   callback_data=f"role:{member_index}:ceo_chair")],
+        [InlineKeyboardButton("مدیرعامل و نایب رئیس هیئت‌مدیره", callback_data=f"role:{member_index}:ceo_vice")],
+        [InlineKeyboardButton("مدیرعامل و عضو هیئت‌مدیره",    callback_data=f"role:{member_index}:ceo_member")],
+    ]
+    return InlineKeyboardMarkup(kb)
+
+# --- [B] کیبورد انتخاب حق‌امضا برای هر عضو ---
+def sign_authority_keyboard(member_index: int):
+    kb = [
+        [InlineKeyboardButton("اوراق و اسناد بهادار و تعهد‌آور", callback_data=f"sig:{member_index}:b")],
+        [InlineKeyboardButton("اوراق عادی و اداری", callback_data=f"sig:{member_index}:n")],
+        [InlineKeyboardButton("هر دو گزینه", callback_data=f"sig:{member_index}:bn")],
+    ]
+    return InlineKeyboardMarkup(kb)
+
+# --- [C] سؤال اضافی برای مدیرعامل: خارج از سهامداران هست؟ ---
+def ceo_outside_keyboard(member_index: int):
+    kb = [
+        [InlineKeyboardButton("بله", callback_data=f"ceo_out:{member_index}:yes")],
+        [InlineKeyboardButton("خیر", callback_data=f"ceo_out:{member_index}:no")],
+    ]
+    return InlineKeyboardMarkup(kb)
+
+# --- [D] سازنده‌ی بند «حق‌امضا هوشمند» ---
+def build_signature_clause_roles(d: dict) -> str:
+    """
+    از روی کلیدهای:
+      - تعداد اعضای هیئت مدیره  → int
+      - عضو i سمت               → str   (chair/vice/ceo/member → برچسب فارسی)
+      - عضو i حق‌امضا           → {"b","n","bn"}
+    جمله/جملات حق‌امضا را می‌سازد. در صورت وجود حداقل ۲ نفر در هر دسته، «متفق» اضافه می‌شود.
+    اگر مجموعه‌ی امضاکنندگان بهادار و عادی دقیقاً یکسان باشد، یک جملهٔ تلفیقی می‌سازیم.
+    """
+
+    def fa_role_label(code: str) -> str:
+        return {
+            "chair":       "رئیس هیئت‌مدیره",
+            "vice":        "نایب رئیس هیئت‌مدیره",
+            "ceo":         "مدیرعامل",
+            "member":      "عضو هیئت‌مدیره",
+            # --- سه گزینهٔ ترکیبی جدید ---
+            "ceo_chair":   "مدیرعامل و رئیس هیئت‌مدیره",
+            "ceo_vice":    "مدیرعامل و نایب رئیس هیئت‌مدیره",
+            "ceo_member":  "مدیرعامل و عضو هیئت‌مدیره",
+        }.get(code, code or "عضو هیئت‌مدیره")
+
+
+    def uniq(seq):
+        seen = set(); out = []
+        for x in seq:
+            if x not in seen:
+                seen.add(x); out.append(x)
+        return out
+
+    def fmt(roles):
+        roles = uniq(roles)
+        if not roles:
+            return ""
+        txt = " و ".join(roles)
+        if len(roles) >= 2:
+            txt += " متفق"
+        return txt
+
+    total = int(fa_to_en_number(str(d.get("تعداد اعضای هیئت مدیره", 0)) or "0"))
+    b_roles, n_roles = [], []
+
+    for i in range(1, total + 1):
+        r = d.get(f"عضو {i} سمت کد")  # ذخیره می‌کنیم که کد سمت هم داشته باشیم
+        ch = d.get(f"عضو {i} حق‌امضا")  # b / n / bn
+        if not r or not ch:
+            continue
+        label = fa_role_label(r)
+        if ch in ("b", "bn"):
+            b_roles.append(label)
+        if ch in ("n", "bn"):
+            n_roles.append(label)
+
+    b_roles = uniq(b_roles); n_roles = uniq(n_roles)
+
+    # هیچ انتخابی نشده؟
+    if not b_roles and not n_roles:
+        return ""
+
+    # مجموعه‌ها یکسان؟
+    if set(b_roles) == set(n_roles) and b_roles:
+        people = fmt(b_roles)
+        return (
+            "كليه اوراق و اسناد بهادار و تعهد‌آور شركت از قبيل چك، سفته، بروات، قراردادها و عقود اسلامي "
+            "و همچنین كليه نامه‌های عادی و اداری "
+            f"با امضاء {people} همراه با مهر شركت معتبر می‌باشد."
+        )
+
+    parts = []
+    if b_roles:
+        parts.append(
+            "كليه اوراق و اسناد بهادار و تعهد‌آور شركت از قبيل چك، سفته، بروات، قراردادها و عقود اسلامي "
+            f"با امضاء {fmt(b_roles)} همراه با مهر شركت معتبر می‌باشد."
+        )
+    if n_roles:
+        parts.append(
+            "كليه نامه‌های عادی و اداری "
+            f"با امضاء {fmt(n_roles)} همراه با مهر شركت معتبر می‌باشد."
+        )
+    return "\n".join(parts).strip()
+
+
+def handle_inline_callbacks(update: Update, context: CallbackContext):
+    q = update.callback_query
+    if not q:
+        return
+    chat_id = q.message.chat_id if hasattr(q.message, "chat_id") else q.message.chat.id
+    d = user_data.setdefault(chat_id, {})
+    data = q.data or ""
+    try: q.answer()
+    except: pass
+
+    # --- انتخاب موضوع: انتخاب مدیران ---
+    if data == "topic:board_election":
+        d.clear()
+        d["موضوع صورتجلسه"] = "انتخاب مدیران"
+        d["step"] = 0  # بریم سراغ انتخاب نوع شرکت
+        send_company_type_menu(chat_id, context)
+        return
+
+    # --- انتخاب نوع شرکت ---
+    if data in ("سهامی خاص", "مسئولیت محدود"):
+        d["نوع شرکت"] = data
+        # فقط برای سهامی خاص این سناریو فعال است
+        if d.get("موضوع صورتجلسه") == "انتخاب مدیران":
+            if data != "سهامی خاص":
+                context.bot.send_message(chat_id=chat_id, text="این صورتجلسه فعلاً فقط برای «سهامی خاص» پشتیبانی می‌شود.")
+                send_topic_menu(chat_id, context)
+                return
+            # شروع مراحل
+            d["step"] = 1
+            label = get_label("نام شرکت")
+            if 'remember_last_question' in globals(): remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+            return
+        # در غیر این صورت بقیه سناریوهای قبلی تو...
+
+    # --- انتخاب سمت برای عضو i ---
+    if data.startswith("role:"):
+        # payload مثل "role:3:ceo"
+        try:
+            _, idx_str, code = data.split(":")
+            i = int(idx_str)
+        except:
+            context.bot.send_message(chat_id=chat_id, text="انتخاب سمت نامعتبر بود.")
+            return
+
+        d[f"عضو {i} سمت کد"] = code
+        # برچسب فارسی سمت برای استفاده در متن اعضا
+        role_map = {"chair": "رئیس هیئت‌مدیره", "vice": "نایب رئیس هیئت‌مدیره", "ceo": "مدیرعامل", "member": "عضو هیئت‌مدیره"}
+        d[f"عضو {i} سمت"] = role_map.get(code, "عضو هیئت‌مدیره")
+
+        # اگر مدیرعامل شد → سؤال اضافی
+        if code.startswith("ceo"):  # شامل ceo, ceo_chair, ceo_vice, ceo_member
+            context.bot.send_message(
+                chat_id=chat_id,
+                text="آیا مدیرعامل خارج از سهامداران است؟",
+                reply_markup=ceo_outside_keyboard(i)
+            )
+            return
+            
+        # در غیر این صورت مستقیم بریم سراغ حق‌امضا
+        context.bot.send_message(chat_id=chat_id,
+                                 text=f"وضعیت حق‌امضا برای «{d.get(f'عضو {i} نام','')}» را انتخاب کنید:",
+                                 reply_markup=sign_authority_keyboard(i))
+        return
+
+    # --- پاسخ به سؤال «مدیرعامل خارج از سهامداران؟» ---
+    if data.startswith("ceo_out:"):
+        # payload: "ceo_out:i:yes|no"
+        _, idx_str, yn = data.split(":")
+        i = int(idx_str)
+        d[f"عضو {i} مدیرعامل بیرون سهامداران؟"] = (yn == "yes")
+        # حالا حق‌امضا را بپرس
+        context.bot.send_message(chat_id=chat_id,
+                                 text=f"وضعیت حق‌امضا برای «{d.get(f'عضو {i} نام','')}» را انتخاب کنید:",
+                                 reply_markup=sign_authority_keyboard(i))
+        return
+
+    # --- حق‌امضا برای عضو i ---
+    if data.startswith("sig:"):
+        # payload: "sig:i:b|n|bn"
+        try:
+            _, idx_str, choice = data.split(":")
+            i = int(idx_str)
+        except:
+            return
+        if choice not in ("b", "n", "bn"):
+            return
+        d[f"عضو {i} حق‌امضا"] = choice
+
+        total = int(fa_to_en_number(str(d.get("تعداد اعضای هیئت مدیره", 0)) or "0"))
+        if i < total:
+            d["board_index"] = i + 1
+            fa_next = str(d["board_index"]).translate(str.maketrans("0123456789","۰۱۲۳۴۵۶۷۸۹"))
+            label = f"نام عضو هیئت‌مدیره {fa_next} را وارد کنید (مثال: آقای ... / خانم ...):"
+            if 'remember_last_question' in globals(): remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+        else:
+            # همه اعضا کامل → برو مرحله بعد (وکیل)
+            d["step"] = 9
+            label = get_label("وکیل")
+            if 'remember_last_question' in globals(): remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+        return
+
+    # فوروارد کردن بقیه payload ها به هندلرهای موجود (مثل روزنامه و ...)
+    if data.startswith("newspaper:"):
+        handle_newspaper_choice(update, context)
+        return
+
+    if data == AI_RESUME:
+        resume_from_ai(update, context)
+        return
+
+    # اگر otp دکمه‌ای داری:
+    try:
+        otp_buttons_handler(update, context)
+    except Exception:
+        pass
+
+
 
 
 def handle_message(update: Update, context: CallbackContext):
@@ -768,6 +1018,127 @@ def handle_message(update: Update, context: CallbackContext):
             if step >= 13:
                 context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات ثبت شد. برای شروع مجدد /start را ارسال کنید.")
                 return
+
+
+
+        # -------------------------------
+        # انتخاب مدیران - سهامی خاص
+        # -------------------------------
+        if data.get("موضوع صورتجلسه") == "انتخاب مدیران" and data.get("نوع شرکت") == "سهامی خاص":
+            if step == 1:
+                data["نام شرکت"] = text
+                data["step"] = 2
+                label = get_label("شماره ثبت")
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard()); return
+        
+            if step == 2:
+                if not is_persian_number(text):
+                    context.bot.send_message(chat_id=chat_id, text="❗️شماره ثبت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard()); return
+                data["شماره ثبت"] = text
+                data["step"] = 3
+                label = get_label("شناسه ملی")
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard()); return
+        
+            if step == 3:
+                if not is_persian_number(text):
+                    context.bot.send_message(chat_id=chat_id, text="❗️شناسه ملی را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard()); return
+                data["شناسه ملی"] = text
+                data["step"] = 4
+                label = get_label("سرمایه")
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard()); return
+        
+            if step == 4:
+                if not is_persian_number(text):
+                    context.bot.send_message(chat_id=chat_id, text="❗️سرمایه را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard()); return
+                data["سرمایه"] = text
+                data["step"] = 5
+                label = get_label("تاریخ")
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard()); return
+        
+            if step == 5:
+                if not is_valid_persian_date(text):
+                    context.bot.send_message(chat_id=chat_id, text="❗️فرمت تاریخ صحیح نیست. نمونه: ۱۴۰۴/۰۵/۱۵", reply_markup=main_keyboard()); return
+                data["تاریخ"] = text
+                data["step"] = 6
+                label = get_label("ساعت")
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard()); return
+        
+            if step == 6:
+                if not is_persian_number(text):
+                    context.bot.send_message(chat_id=chat_id, text="❗️ساعت را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard()); return
+                data["ساعت"] = text
+                data["step"] = 7
+                label = "تعداد اعضای هیئت‌مدیره را وارد کنید (اعداد فارسی):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard()); return
+        
+            if step == 7:
+                if not is_persian_number(text):
+                    context.bot.send_message(chat_id=chat_id, text="❗️عدد فارسی وارد کنید.", reply_markup=main_keyboard()); return
+                count = int(fa_to_en_number(text))
+                if count < 1:
+                    context.bot.send_message(chat_id=chat_id, text="❗️حداقل یک عضو لازم است.", reply_markup=main_keyboard()); return
+                data["تعداد اعضای هیئت مدیره"] = count
+                data["board_index"] = 1
+                data["step"] = 8
+                fa1 = "1".translate(str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹"))
+                label = f"نام عضو هیئت‌مدیره {fa1} را وارد کنید (مثال: آقای ... / خانم ...):"
+                remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard()); return
+        
+            # حلقه اعضای هیئت‌مدیره (نام → کدملی → انتخاب سمت (دکمه) → اگر ceo سوال اضافه → حق‌امضا (دکمه))
+            if step == 8:
+                i = data.get("board_index", 1)
+                fa_i = str(i).translate(str.maketrans("0123456789","۰۱۲۳۴۵۶۷۸۹"))
+                prefix = f"عضو {i}"
+        
+                if f"{prefix} نام" not in data:
+                    data[f"{prefix} نام"] = text
+                    label = f"کد ملی عضو هیئت‌مدیره {fa_i} را وارد کنید (اعداد فارسی):"
+                    remember_last_question(context, label)
+                    context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard()); return
+        
+                if f"{prefix} کد ملی" not in data:
+                    if not is_persian_number(text):
+                        context.bot.send_message(chat_id=chat_id, text="❗️کد ملی را فقط با اعداد فارسی وارد کنید.", reply_markup=main_keyboard()); return
+                    data[f"{prefix} کد ملی"] = text
+                    # حالا انتخاب سمت با دکمه‌ها
+                    context.bot.send_message(chat_id=chat_id,
+                                             text=f"سمت «{data.get(f'{prefix} نام','')}» را انتخاب کنید:",
+                                             reply_markup=roles_keyboard(i))
+                    return
+        
+                # بعد از انتخاب سمت، callback نقش → اگر ceo باشد سؤال اضافه → سپس callback حق‌امضا
+                # بعد از ذخیره حق‌امضا در callback، یا به عضو بعدی می‌رویم یا به مرحله وکیل.
+        
+            if step == 9:
+                data["وکیل"] = text
+                # ساخت و ارسال خروجی
+                text_out = render_board_election_text(data)
+                try:
+                    # پیام
+                    for ofs in range(0, len(text_out), 3500):
+                        context.bot.send_message(chat_id=chat_id, text=text_out[ofs:ofs+3500], reply_markup=main_keyboard())
+                    # فایل Word
+                    file_path = generate_word_file(text_out)
+                    with open(file_path, 'rb') as f:
+                        context.bot.send_document(chat_id=chat_id, document=f, filename="صورتجلسه انتخاب مدیران.docx")
+                    os.remove(file_path)
+                except Exception as e:
+                    context.bot.send_message(chat_id=chat_id, text=f"❗️خطا در ساخت/ارسال فایل: {e}", reply_markup=main_keyboard())
+                data["step"] = 10
+                return
+        
+            if step >= 10:
+                context.bot.send_message(chat_id=chat_id, text="✅ اطلاعات ثبت شد. برای شروع مجدد /start را ارسال کنید.", reply_markup=main_keyboard())
+                return
+
+
         
         # تعریف فیلدهای پایه برای تغییر آدرس مسئولیت محدود
         common_fields = ["نام شرکت", "شماره ثبت", "شناسه ملی", "سرمایه", "تاریخ", "ساعت", "آدرس جدید", "کد پستی", "وکیل"]
@@ -3512,6 +3883,55 @@ def handle_back(update: Update, context: CallbackContext):
             context.bot.send_message(chat_id=chat_id, text="آدرس مدیر تصفیه و محل تصفیه را وارد کنید:")
             return
 
+
+
+    # --------------------------------------
+    # بازگشت: انتخاب مدیران - سهامی خاص
+    # --------------------------------------
+    if موضوع == "انتخاب مدیران" and نوع_شرکت == "سهامی خاص":
+        # مسیر خطی 2..6
+        if 2 <= step <= 6:
+            prev_step = step - 1
+            order = ["نام شرکت","شماره ثبت","شناسه ملی","سرمایه","تاریخ","ساعت"]
+            key = order[prev_step - 1] if prev_step - 1 < len(order) else None
+            if prev_step == 1:
+                data.pop("نام شرکت", None); data["step"] = 1
+                context.bot.send_message(chat_id=chat_id, text=get_label("نام شرکت")); return
+            if key:
+                data.pop(key, None); data["step"] = prev_step
+                context.bot.send_message(chat_id=chat_id, text=get_label(key)); return
+    
+        # قبل از ورود به حلقه اعضا
+        if step == 7:
+            data.pop("ساعت", None); data["step"] = 6
+            context.bot.send_message(chat_id=chat_id, text=get_label("ساعت")); return
+    
+        # حلقه اعضا (step=8)
+        if step == 8:
+            i = data.get("board_index", 1)
+            fa_i = str(i).translate(str.maketrans("0123456789","۰۱۲۳۴۵۶۷۸۹"))
+            if f"عضو {i} نام" not in data:
+                if i == 1:
+                    data.pop("تعداد اعضای هیئت مدیره", None); data["step"] = 7
+                    context.bot.send_message(chat_id=chat_id, text="تعداد اعضای هیئت‌مدیره را وارد کنید (اعداد فارسی):"); return
+                prev_i = i - 1
+                data["board_index"] = prev_i
+                data.pop(f"عضو {prev_i} کد ملی", None)
+                context.bot.send_message(chat_id=chat_id, text=f"کد ملی عضو هیئت‌مدیره {str(prev_i).translate(str.maketrans('0123456789','۰۱۲۳۴۵۶۷۸۹'))} را وارد کنید (اعداد فارسی):"); return
+            if f"عضو {i} کد ملی" not in data:
+                data.pop(f"عضو {i} نام", None)
+                context.bot.send_message(chat_id=chat_id, text=f"نام عضو هیئت‌مدیره {fa_i} را وارد کنید (مثال: آقای ... / خانم ...):"); return
+            # اگر سمت/حق‌امضا را با دکمه می‌گیریم، برگشت در همین مرحله کافی است.
+    
+        if step == 9:
+            data.pop("وکیل", None); data["step"] = 8
+            # برگرد به ادامه حلقه/عضو آخر برای اطمینان، از کاربر بخواهیم اگر لازم است اصلاح کند
+            i = data.get("board_index", int(fa_to_en_number(str(data.get("تعداد اعضای هیئت مدیره", 1)))))
+            context.bot.send_message(chat_id=chat_id, text=f"در صورت نیاز می‌توانید اطلاعات عضو {str(i).translate(str.maketrans('0123456789','۰۱۲۳۴۵۶۷۸۹'))} را اصلاح کنید یا {get_label('وکیل')} را دوباره وارد کنید.", reply_markup=main_keyboard())
+            return
+
+
+    
     # --------------------------------------
     # بازگشت: نقل و انتقال سهم‌الشرکه - مسئولیت محدود
     # مراحل:
@@ -3927,6 +4347,51 @@ def button_handler(update: Update, context: CallbackContext):
 
         context.bot.send_message(chat_id=chat_id, text="موضوع جدید فعالیت شرکت را وارد کنید:")
         return
+
+
+
+def render_board_election_text(d: dict) -> str:
+    # لیست اعضا
+    total = int(fa_to_en_number(str(d.get("تعداد اعضای هیئت مدیره", 0)) or "0"))
+    lines = []
+    for i in range(1, total + 1):
+        nm  = d.get(f"عضو {i} نام","")
+        nid = d.get(f"عضو {i} کد ملی","")
+        rol = d.get(f"عضو {i} سمت","")  # برچسب فارسیِ سمت
+        if nm or nid or rol:
+            lines.append(f"{nm} به شماره ملی {nid} به سمت {rol}")
+
+    members_block = " ".join(lines).strip()
+
+    # بند حق‌امضا هوشمند
+    sig_clause = build_signature_clause_roles(d)
+    sig_clause = f"\n{sig_clause}\n" if sig_clause else ""
+
+    # ⚠️ پرانتزها را نرمال کردم به فرم استاندارد (… (سهامی خاص))
+    text_out = f"""
+صورتجلسه هیئت مدیره شرکت {d.get("نام شرکت","")} ({d.get("نوع شرکت","")})
+شماره ثبت شرکت :     {d.get("شماره ثبت","")}
+شناسه ملی :      {d.get("شناسه ملی","")}
+سرمایه ثبت شده : {d.get("سرمایه","")} ریال
+
+جلسه هیئت مدیره شرکت {d.get("نام شرکت","")} ({d.get("نوع شرکت","")}) ثبت شده به شماره {d.get("شماره ثبت","")} در تاریخ  {d.get("تاریخ","")} ساعت {d.get("ساعت","")} با حضور کلیه سهامداران در محل قانونی شرکت تشکیل و نسبت به تعیین سمت و تعیین دارندگان حق امضاء اتخاذ تصمیم شد. 
+
+{members_block}
+
+{sig_clause}
+ج: اینجانبان اعضاء هیات مدیره ضمن قبولی سمت خود اقرار می نمائیم که هیچگونه سوء پیشینه کیفری نداشته و ممنوعیت اصل 141 قانون اساسی و مواد 111 و 126 لایحه اصلاحی قانون تجارت را نداریم .
+
+هیئت مدیره به {d.get("وکیل","")} احدی از اعضاء شرکت وکالت داده می شود که ضمن مراجعه به اداره ثبت شرکتها نسبت به ثبت صورتجلسه و پرداخت حق الثبت و امضاء ذیل دفاتر ثبت اقدام نماید. 
+
+امضاء اعضای هیات مدیره
+
+     {(d.get("عضو 1 نام",""))}                                        {(d.get("عضو 2 نام",""))}  
+                    
+
+     {(d.get("عضو 3 نام",""))}
+""".strip()
+    return text_out
+
 
 
 def send_summary(chat_id, context):
@@ -4595,6 +5060,7 @@ def webhook():
 
 dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
 dispatcher.add_handler(CallbackQueryHandler(handle_newspaper_choice, pattern=r"^newspaper:"))
+dispatcher.add_handler(CallbackQueryHandler(handle_inline_callbacks), group=0)
 
 # ===== گروه 0: مربوط به AI =====
 dispatcher.add_handler(MessageHandler(Filters.text & Filters.regex(f"^{re.escape(AI_ASK_TEXT)}$"), enter_ai_mode_reply), group=0)
