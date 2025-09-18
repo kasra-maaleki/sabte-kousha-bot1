@@ -603,6 +603,7 @@ def sign_authority_keyboard(member_index: int):
         [InlineKeyboardButton("اوراق و اسناد بهادار و تعهد‌آور", callback_data=f"sig:{member_index}:b")],
         [InlineKeyboardButton("اوراق عادی و اداری", callback_data=f"sig:{member_index}:n")],
         [InlineKeyboardButton("هر دو گزینه", callback_data=f"sig:{member_index}:bn")],
+        [InlineKeyboardButton("❌ حق امضا ندارد", callback_data=f"sig:{member_index}:none")],
     ]
     return InlineKeyboardMarkup(kb)
 
@@ -617,12 +618,10 @@ def ceo_outside_keyboard(member_index: int):
 # --- [D] سازنده‌ی بند «حق‌امضا هوشمند» ---
 def build_signature_clause_roles(d: dict) -> str:
     """
-    از روی کلیدهای:
-      - تعداد اعضای هیئت مدیره  → int
-      - عضو i سمت               → str   (chair/vice/ceo/member → برچسب فارسی)
-      - عضو i حق‌امضا           → {"b","n","bn"}
-    جمله/جملات حق‌امضا را می‌سازد. در صورت وجود حداقل ۲ نفر در هر دسته، «متفق» اضافه می‌شود.
-    اگر مجموعه‌ی امضاکنندگان بهادار و عادی دقیقاً یکسان باشد، یک جملهٔ تلفیقی می‌سازیم.
+    خروجیِ یک‌جمله‌ای در صورت وجود هر دو دسته؛
+    اگر فقط یکی موجود باشد همان یک جمله ساخته می‌شود.
+    گزینه‌ی 'none' نادیده گرفته می‌شود.
+    'متفق' قبل از لیست سمت‌ها می‌آید.
     """
 
     def fa_role_label(code: str) -> str:
@@ -631,12 +630,10 @@ def build_signature_clause_roles(d: dict) -> str:
             "vice":        "نایب رئیس هیئت‌مدیره",
             "ceo":         "مدیرعامل",
             "member":      "عضو هیئت‌مدیره",
-            # --- سه گزینهٔ ترکیبی جدید ---
             "ceo_chair":   "مدیرعامل و رئیس هیئت‌مدیره",
             "ceo_vice":    "مدیرعامل و نایب رئیس هیئت‌مدیره",
             "ceo_member":  "مدیرعامل و عضو هیئت‌مدیره",
         }.get(code, code or "عضو هیئت‌مدیره")
-
 
     def uniq(seq):
         seen = set(); out = []
@@ -649,17 +646,17 @@ def build_signature_clause_roles(d: dict) -> str:
         roles = uniq(roles)
         if not roles:
             return ""
-        txt = " و ".join(roles)
-        if len(roles) >= 2:
-            txt += " متفق"
-        return txt
+        if len(roles) == 1:
+            return roles[0]
+        # «متفق» قبل از لیست سمت‌ها
+        return "متفق " + " و ".join(roles)
 
     total = int(fa_to_en_number(str(d.get("تعداد اعضای هیئت مدیره", 0)) or "0"))
     b_roles, n_roles = [], []
 
     for i in range(1, total + 1):
-        r = d.get(f"عضو {i} سمت کد")  # ذخیره می‌کنیم که کد سمت هم داشته باشیم
-        ch = d.get(f"عضو {i} حق‌امضا")  # b / n / bn
+        r  = d.get(f"عضو {i} سمت کد")
+        ch = d.get(f"عضو {i} حق‌امضا")  # b / n / bn / none
         if not r or not ch:
             continue
         label = fa_role_label(r)
@@ -667,34 +664,35 @@ def build_signature_clause_roles(d: dict) -> str:
             b_roles.append(label)
         if ch in ("n", "bn"):
             n_roles.append(label)
+        # اگر ch == "none" → در هیچ‌جا اضافه نکن
 
-    b_roles = uniq(b_roles); n_roles = uniq(n_roles)
+    b_txt = fmt(b_roles)
+    n_txt = fmt(n_roles)
 
-    # هیچ انتخابی نشده؟
-    if not b_roles and not n_roles:
+    # هیچ امضاکننده‌ای انتخاب نشده:
+    if not b_txt and not n_txt:
         return ""
 
-    # مجموعه‌ها یکسان؟
-    if set(b_roles) == set(n_roles) and b_roles:
-        people = fmt(b_roles)
+    # هر دو دسته وجود داشته باشند → یک جمله‌ی پیوسته (بدون خط جدید/فاصله اضافی)
+    if b_txt and n_txt:
         return (
             "كليه اوراق و اسناد بهادار و تعهد‌آور شركت از قبيل چك، سفته، بروات، قراردادها و عقود اسلامي "
-            "و همچنین كليه نامه‌های عادی و اداری "
-            f"با امضاء {people} همراه با مهر شركت معتبر می‌باشد."
+            f"با امضا {b_txt} همراه با مهر شرکت و مکاتبات عادی و اداری "
+            f"با امضاء {n_txt} همراه با مهر شرکت معتبر می باشد"
         )
 
-    parts = []
-    if b_roles:
-        parts.append(
+    # فقط بهادار/تعهدآور
+    if b_txt:
+        return (
             "كليه اوراق و اسناد بهادار و تعهد‌آور شركت از قبيل چك، سفته، بروات، قراردادها و عقود اسلامي "
-            f"با امضاء {fmt(b_roles)} همراه با مهر شركت معتبر می‌باشد."
+            f"با امضاء {b_txt} همراه با مهر شرکت معتبر می باشد"
         )
-    if n_roles:
-        parts.append(
-            "كليه نامه‌های عادی و اداری "
-            f"با امضاء {fmt(n_roles)} همراه با مهر شركت معتبر می‌باشد."
-        )
-    return "\n".join(parts).strip()
+
+    # فقط عادی/اداری
+    return (
+        f"مکاتبات عادی و اداری با امضاء {n_txt} همراه با مهر شرکت معتبر می باشد"
+    )
+
 
 
 def handle_inline_callbacks(update: Update, context: CallbackContext):
@@ -760,11 +758,18 @@ def handle_inline_callbacks(update: Update, context: CallbackContext):
             "ceo_vice":    "مدیرعامل و نایب رئیس هیئت‌مدیره",
             "ceo_member":  "مدیرعامل و عضو هیئت‌مدیره",
         }
+    
         d[f"عضو {i} سمت کد"] = code
         d[f"عضو {i} سمت"]    = role_map.get(code, "عضو هیئت‌مدیره")
     
-        # ✅ فقط برای «مدیرعامل» (نه نقش‌های ترکیبی) سؤال اضافه را بپرس
+        # ✅ پیام خلاصه همزمان با سؤال بعدی: «اسم شخص : سمت شخص»
+        person_name  = d.get(f"عضو {i} نام", "")
+        person_role  = d.get(f"عضو {i} سمت", "")
+        info_line    = f"{person_name} : {person_role}"
+    
         if code == "ceo":
+            # فقط برای مدیرعامل سؤال اضافه می‌پرسیم
+            context.bot.send_message(chat_id=chat_id, text=info_line)
             context.bot.send_message(
                 chat_id=chat_id,
                 text="آیا مدیرعامل خارج از سهامداران است؟",
@@ -772,13 +777,15 @@ def handle_inline_callbacks(update: Update, context: CallbackContext):
             )
             return
     
-        # سایر سمت‌ها (از جمله نقش‌های ترکیبی) → مستقیم برو سراغ حق‌امضا
+        # سایر سمت‌ها (از جمله ترکیبی‌ها) → مستقیم برو سراغ حق‌امضا
+        context.bot.send_message(chat_id=chat_id, text=info_line)
         context.bot.send_message(
             chat_id=chat_id,
-            text=f"وضعیت حق‌امضا برای «{d.get(f'عضو {i} نام','')}» را انتخاب کنید:",
+            text=f"وضعیت حق‌امضا برای «{person_name}» را انتخاب کنید:",
             reply_markup=sign_authority_keyboard(i)
         )
         return
+
 
 
 
@@ -810,20 +817,17 @@ def handle_inline_callbacks(update: Update, context: CallbackContext):
 
     # --- حق‌امضا برای عضو i ---
     if payload.startswith("sig:"):
-        parts = payload.split(":", 2)  # "sig:{i}:{b|n|bn}"
+        parts = payload.split(":", 2)  # "sig:{i}:{b|n|bn|none}"
         if len(parts) != 3:
-            context.bot.send_message(chat_id=chat_id, text="دادهٔ حق‌امضا نامعتبر بود.")
-            return
+            context.bot.send_message(chat_id=chat_id, text="دادهٔ حق‌امضا نامعتبر بود."); return
         _, idx_str, choice = parts
         try:
             i = int(idx_str)
         except ValueError:
-            context.bot.send_message(chat_id=chat_id, text="شناسهٔ عضو نامعتبر بود.")
-            return
+            context.bot.send_message(chat_id=chat_id, text="شناسهٔ عضو نامعتبر بود."); return
     
-        if choice not in ("b", "n", "bn"):
-            context.bot.send_message(chat_id=chat_id, text="گزینهٔ حق‌امضا نامعتبر بود.")
-            return
+        if choice not in ("b", "n", "bn", "none"):   # ← گزینهٔ جدید
+            context.bot.send_message(chat_id=chat_id, text="گزینهٔ حق‌امضا نامعتبر بود."); return
     
         d[f"عضو {i} حق‌امضا"] = choice
     
@@ -836,12 +840,53 @@ def handle_inline_callbacks(update: Update, context: CallbackContext):
                 remember_last_question(context, label)
             context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
         else:
+            # --- پایان ورود حق‌امضا برای آخرین عضو → اعتبارسنجی حداقل‌ها ---
+            b_count = 0
+            n_count = 0
+            for j in range(1, total + 1):
+                chj = d.get(f"عضو {j} حق‌امضا")
+                if chj in ("b", "bn"):
+                    b_count += 1
+                if chj in ("n", "bn"):
+                    n_count += 1
+        
+            if b_count < 1 or n_count < 1:
+                # ❗️شرط رعایت نشده → پاک‌سازی کامل اعضا + خودِ تعداد + بازگشت به سؤال تعداد
+                for j in range(1, total + 1):
+                    for key in (
+                        f"عضو {j} نام",
+                        f"عضو {j} کد ملی",
+                        f"عضو {j} سمت",
+                        f"عضو {j} سمت کد",
+                        f"عضو {j} حق‌امضا",
+                        f"عضو {j} مدیرعامل بیرون سهامداران؟",
+                    ):
+                        d.pop(key, None)
+        
+                d.pop("تعداد اعضای هیئت مدیره", None)
+                d["board_index"] = 1
+                d["step"] = 7  # ← برگرد به سؤال تعداد اعضا
+        
+                warn = (
+                    "❗️برای اعتبار صورتجلسه، باید حداقل یک امضاکننده برای «اوراق و اسناد بهادار و تعهد‌آور» "
+                    "و حداقل یک امضاکننده برای «مکاتبات عادی و اداری» انتخاب شود.\n"
+                    "اطلاعات اعضای هیئت‌مدیره پاک شد. لطفاً دوباره تعداد اعضای هیئت‌مدیره را وارد کنید."
+                )
+                label = "تعداد اعضای هیئت‌مدیره را وارد کنید (اعداد فارسی):"
+        
+                context.bot.send_message(chat_id=chat_id, text=warn, reply_markup=main_keyboard())
+                if 'remember_last_question' in globals():
+                    remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                return
+        
+            # اگر شرط‌ها برقرار بود → ادامهٔ فلو (وکیل)
             d["step"] = 9
             label = get_label("وکیل") if 'get_label' in globals() else "نام وکیل را وارد کنید:"
             if 'remember_last_question' in globals():
                 remember_last_question(context, label)
             context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
-        return
+            return
 
 
     # فوروارد کردن بقیه payload ها به هندلرهای موجود (مثل روزنامه و ...)
@@ -1103,11 +1148,8 @@ def handle_message(update: Update, context: CallbackContext):
                 label = f"نام عضو هیئت‌مدیره {fa1} را وارد کنید (مثال: آقای ... / خانم ...):"
                 if 'remember_last_question' in globals():
                     remember_last_question(context, label)
-            
-                # 1) سوال بعدی (نام عضو ۱)
-                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
-            
-                # 2) پیام اطلاع‌رسانی همزمان (در پیام جداگانه)
+
+                # 1) پیام اطلاع‌رسانی همزمان (در پیام جداگانه)
                 context.bot.send_message(
                     chat_id=chat_id,
                     text=(
@@ -1115,6 +1157,9 @@ def handle_message(update: Update, context: CallbackContext):
                         "مدیرعامل لزوماً سهامدار نیست، اما اعضای هیئت‌مدیره باید سهامدار باشند."
                     )
                 )
+                
+                # 2) سوال بعدی (نام عضو ۱)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
                 return
 
         
