@@ -703,7 +703,38 @@ def handle_inline_callbacks(update: Update, context: CallbackContext):
         return
     chat_id = q.message.chat_id if hasattr(q.message, "chat_id") else q.message.chat.id
     d = user_data.setdefault(chat_id, {})
-    payload = q.data or ""   # مهم: از اسم 'payload' استفاده کن، نه 'data'
+    payload = q.data or ""
+    try:
+        q.answer()
+    except Exception:
+        pass
+
+    # --- انتخاب موضوع: "👔 انتخاب مدیران" ---
+    if payload == "topic:board_election":
+        # پاکسازی کلیدهای مرتبط با سناریوهای قبلی
+        for k in ["step", "board_index", "عضو_index", "سهامدار_index",
+                  "تعداد اعضای هیئت مدیره", "تعداد سهامداران"]:
+            d.pop(k, None)
+        d["موضوع صورتجلسه"] = "انتخاب مدیران"
+
+        # نمایش منوی نوع شرکت
+        send_company_type_menu(chat_id, context)
+        return
+
+    # --- انتخاب نوع شرکت ---
+    if payload in ("سهامی خاص", "مسئولیت محدود"):
+        d["نوع شرکت"] = payload
+
+        # شروع سناریوی انتخاب مدیران فقط برای سهامی خاص
+        if d.get("موضوع صورتجلسه") == "انتخاب مدیران" and payload == "سهامی خاص":
+            d["step"] = 1
+            label = get_label("نام شرکت") if 'get_label' in globals() else "نام شرکت را وارد کنید:"
+            if 'remember_last_question' in globals():
+                remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+            return
+
+        # (در غیر اینصورت می‌تونی اینجا سناریوهای دیگر را آغاز کنی)
 
     # --- سایر payload ها ... ---
 
@@ -757,7 +788,7 @@ def handle_inline_callbacks(update: Update, context: CallbackContext):
 
 
     # --- پاسخ به سؤال «مدیرعامل خارج از سهامداران؟» ---
-    if data.startswith("ceo_out:"):
+    if payload.startswith("ceo_out:"):
         # payload: "ceo_out:i:yes|no"
         _, idx_str, yn = data.split(":")
         i = int(idx_str)
@@ -769,7 +800,7 @@ def handle_inline_callbacks(update: Update, context: CallbackContext):
         return
 
     # --- حق‌امضا برای عضو i ---
-    if data.startswith("sig:"):
+    if payload.startswith("sig:"):
         # payload: "sig:i:b|n|bn"
         try:
             _, idx_str, choice = data.split(":")
@@ -796,11 +827,11 @@ def handle_inline_callbacks(update: Update, context: CallbackContext):
         return
 
     # فوروارد کردن بقیه payload ها به هندلرهای موجود (مثل روزنامه و ...)
-    if data.startswith("newspaper:"):
+    if payload.startswith("newspaper:"):
         handle_newspaper_choice(update, context)
         return
 
-    if data == AI_RESUME:
+    if payload == AI_RESUME:
         resume_from_ai(update, context)
         return
 
