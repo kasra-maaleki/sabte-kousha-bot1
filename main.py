@@ -740,44 +740,39 @@ def handle_inline_callbacks(update: Update, context: CallbackContext):
 
     # --- انتخاب سمت برای عضو i ---
     if payload.startswith("role:"):
-        # payload: "role:{i}:{code}"
-        parts = payload.split(":")
-        if len(parts) < 3:
+        parts = payload.split(":", 2)  # "role:{i}:{code}"
+        if len(parts) != 3:
             context.bot.send_message(chat_id=chat_id, text="انتخاب سمت نامعتبر بود.")
             return
-
-        idx_str = parts[1]
-        code = parts[2]  # chair | vice | ceo | member | ceo_chair | ceo_vice | ceo_member
+        _, idx_str, code = parts
         try:
             i = int(idx_str)
         except ValueError:
-            context.bot.send_message(chat_id=chat_id, text="شناسه عضو نامعتبر بود.")
+            context.bot.send_message(chat_id=chat_id, text="شناسهٔ عضو نامعتبر بود.")
             return
-
-        # ذخیرهٔ سمت
+    
         role_map = {
             "chair":       "رئیس هیئت‌مدیره",
             "vice":        "نایب رئیس هیئت‌مدیره",
             "ceo":         "مدیرعامل",
             "member":      "عضو هیئت‌مدیره",
-            # سه گزینهٔ ترکیبی:
             "ceo_chair":   "مدیرعامل و رئیس هیئت‌مدیره",
             "ceo_vice":    "مدیرعامل و نایب رئیس هیئت‌مدیره",
             "ceo_member":  "مدیرعامل و عضو هیئت‌مدیره",
         }
         d[f"عضو {i} سمت کد"] = code
         d[f"عضو {i} سمت"]    = role_map.get(code, "عضو هیئت‌مدیره")
-
-        # اگر مدیرعامل (یا نقش‌های ترکیبیِ شامل مدیرعامل) بود → سؤال اضافه
-        if code.startswith("ceo"):
+    
+        # ✅ فقط برای «مدیرعامل» (نه نقش‌های ترکیبی) سؤال اضافه را بپرس
+        if code == "ceo":
             context.bot.send_message(
                 chat_id=chat_id,
                 text="آیا مدیرعامل خارج از سهامداران است؟",
                 reply_markup=ceo_outside_keyboard(i)
             )
             return
-
-        # وگرنه مستقیم بریم سراغ حق‌امضا
+    
+        # سایر سمت‌ها (از جمله نقش‌های ترکیبی) → مستقیم برو سراغ حق‌امضا
         context.bot.send_message(
             chat_id=chat_id,
             text=f"وضعیت حق‌امضا برای «{d.get(f'عضو {i} نام','')}» را انتخاب کنید:",
@@ -787,44 +782,67 @@ def handle_inline_callbacks(update: Update, context: CallbackContext):
 
 
 
+
+
     # --- پاسخ به سؤال «مدیرعامل خارج از سهامداران؟» ---
     if payload.startswith("ceo_out:"):
-        # payload: "ceo_out:i:yes|no"
-        _, idx_str, yn = data.split(":")
-        i = int(idx_str)
+        parts = payload.split(":", 2)   # "ceo_out:{i}:{yes|no}"
+        if len(parts) != 3:
+            context.bot.send_message(chat_id=chat_id, text="دادهٔ مدیرعامل نامعتبر بود.")
+            return
+        _, idx_str, yn = parts
+        try:
+            i = int(idx_str)
+        except ValueError:
+            context.bot.send_message(chat_id=chat_id, text="شناسهٔ عضو نامعتبر بود.")
+            return
+    
         d[f"عضو {i} مدیرعامل بیرون سهامداران؟"] = (yn == "yes")
-        # حالا حق‌امضا را بپرس
-        context.bot.send_message(chat_id=chat_id,
-                                 text=f"وضعیت حق‌امضا برای «{d.get(f'عضو {i} نام','')}» را انتخاب کنید:",
-                                 reply_markup=sign_authority_keyboard(i))
+    
+        # بعد از پاسخ، حق‌امضا را بپرس
+        context.bot.send_message(
+            chat_id=chat_id,
+            text=f"وضعیت حق‌امضا برای «{d.get(f'عضو {i} نام','')}» را انتخاب کنید:",
+            reply_markup=sign_authority_keyboard(i)
+        )
         return
+
 
     # --- حق‌امضا برای عضو i ---
     if payload.startswith("sig:"):
-        # payload: "sig:i:b|n|bn"
+        parts = payload.split(":", 2)  # "sig:{i}:{b|n|bn}"
+        if len(parts) != 3:
+            context.bot.send_message(chat_id=chat_id, text="دادهٔ حق‌امضا نامعتبر بود.")
+            return
+        _, idx_str, choice = parts
         try:
-            _, idx_str, choice = data.split(":")
             i = int(idx_str)
-        except:
+        except ValueError:
+            context.bot.send_message(chat_id=chat_id, text="شناسهٔ عضو نامعتبر بود.")
             return
+    
         if choice not in ("b", "n", "bn"):
+            context.bot.send_message(chat_id=chat_id, text="گزینهٔ حق‌امضا نامعتبر بود.")
             return
+    
         d[f"عضو {i} حق‌امضا"] = choice
-
+    
         total = int(fa_to_en_number(str(d.get("تعداد اعضای هیئت مدیره", 0)) or "0"))
         if i < total:
             d["board_index"] = i + 1
             fa_next = str(d["board_index"]).translate(str.maketrans("0123456789","۰۱۲۳۴۵۶۷۸۹"))
             label = f"نام عضو هیئت‌مدیره {fa_next} را وارد کنید (مثال: آقای ... / خانم ...):"
-            if 'remember_last_question' in globals(): remember_last_question(context, label)
+            if 'remember_last_question' in globals():
+                remember_last_question(context, label)
             context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
         else:
-            # همه اعضا کامل → برو مرحله بعد (وکیل)
             d["step"] = 9
-            label = get_label("وکیل")
-            if 'remember_last_question' in globals(): remember_last_question(context, label)
+            label = get_label("وکیل") if 'get_label' in globals() else "نام وکیل را وارد کنید:"
+            if 'remember_last_question' in globals():
+                remember_last_question(context, label)
             context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
         return
+
 
     # فوروارد کردن بقیه payload ها به هندلرهای موجود (مثل روزنامه و ...)
     if payload.startswith("newspaper:"):
@@ -1072,16 +1090,33 @@ def handle_message(update: Update, context: CallbackContext):
             if step == 7:
                 if not is_persian_number(text):
                     context.bot.send_message(chat_id=chat_id, text="❗️عدد فارسی وارد کنید.", reply_markup=main_keyboard()); return
+            
                 count = int(fa_to_en_number(text))
-                if count < 1:
-                    context.bot.send_message(chat_id=chat_id, text="❗️حداقل یک عضو لازم است.", reply_markup=main_keyboard()); return
+                if count < 3:
+                    context.bot.send_message(chat_id=chat_id, text="❗️حداقل سه عضو لازم است.", reply_markup=main_keyboard()); return
+            
                 data["تعداد اعضای هیئت مدیره"] = count
                 data["board_index"] = 1
                 data["step"] = 8
+            
                 fa1 = "1".translate(str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹"))
                 label = f"نام عضو هیئت‌مدیره {fa1} را وارد کنید (مثال: آقای ... / خانم ...):"
-                remember_last_question(context, label)
-                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard()); return
+                if 'remember_last_question' in globals():
+                    remember_last_question(context, label)
+            
+                # 1) سوال بعدی (نام عضو ۱)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+            
+                # 2) پیام اطلاع‌رسانی همزمان (در پیام جداگانه)
+                context.bot.send_message(
+                    chat_id=chat_id,
+                    text=(
+                        "اعضای هیئت‌مدیره الزاماً باید از میان سهامداران انتخاب شوند.\n"
+                        "مدیرعامل لزوماً سهامدار نیست، اما اعضای هیئت‌مدیره باید سهامدار باشند."
+                    )
+                )
+                return
+
         
             # حلقه اعضای هیئت‌مدیره (نام → کدملی → انتخاب سمت (دکمه) → اگر ceo سوال اضافه → حق‌امضا (دکمه))
             if step == 8:
@@ -4347,11 +4382,18 @@ def render_board_election_text(d: dict) -> str:
     total = int(fa_to_en_number(str(d.get("تعداد اعضای هیئت مدیره", 0)) or "0"))
     lines = []
     for i in range(1, total + 1):
-        nm  = d.get(f"عضو {i} نام","")
-        nid = d.get(f"عضو {i} کد ملی","")
-        rol = d.get(f"عضو {i} سمت","")  # برچسب فارسیِ سمت
+        nm   = d.get(f"عضو {i} نام","")
+        nid  = d.get(f"عضو {i} کد ملی","")
+        rol  = d.get(f"عضو {i} سمت","")          # برچسب فارسی سمت
+        code = d.get(f"عضو {i} سمت کد")           # کُد سمت (ceo / chair / ...)
+    
+        # اگر مدیرعامل و پاسخ «بله» بوده:
+        ceo_out = bool(d.get(f"عضو {i} مدیرعامل بیرون سهامداران؟"))
+        suffix  = " (خارج از اعضا)" if (code == "ceo" and ceo_out) else ""
+    
         if nm or nid or rol:
-            lines.append(f"{nm} به شماره ملی {nid} به سمت {rol}")
+            lines.append(f"{nm} به شماره ملی {nid} به سمت {rol}{suffix}")
+
 
     members_block = " ".join(lines).strip()
 
