@@ -787,10 +787,6 @@ def handle_inline_callbacks(update: Update, context: CallbackContext):
         return
 
 
-
-
-
-
     # --- پاسخ به سؤال «مدیرعامل خارج از سهامداران؟» ---
     if payload.startswith("ceo_out:"):
         parts = payload.split(":", 2)   # "ceo_out:{i}:{yes|no}"
@@ -804,15 +800,48 @@ def handle_inline_callbacks(update: Update, context: CallbackContext):
             context.bot.send_message(chat_id=chat_id, text="شناسهٔ عضو نامعتبر بود.")
             return
     
-        d[f"عضو {i} مدیرعامل بیرون سهامداران؟"] = (yn == "yes")
+        is_out = (yn == "yes")
+        d[f"عضو {i} مدیرعامل بیرون سهامداران؟"] = is_out
     
-        # بعد از پاسخ، حق‌امضا را بپرس
+        # ✅ اگر مدیرعامل خارج از سهامداران است → حداقل ۴ عضو لازم است
+        if is_out:
+            cnt_str = str(d.get("تعداد اعضای هیئت مدیره", "") or "0")
+            total = int(fa_to_en_number(cnt_str))
+            if total < 4:
+                # پاک‌سازی تمام داده‌های اعضا + خودِ تعداد
+                for j in range(1, total + 1):
+                    for key in (
+                        f"عضو {j} نام",
+                        f"عضو {j} کد ملی",
+                        f"عضو {j} سمت",
+                        f"عضو {j} سمت کد",
+                        f"عضو {j} حق‌امضا",
+                        f"عضو {j} مدیرعامل بیرون سهامداران؟",
+                    ):
+                        d.pop(key, None)
+                d.pop("تعداد اعضای هیئت مدیره", None)
+                d["board_index"] = 1
+                d["step"] = 7  # ← برگشت به سؤال «تعداد اعضای هیئت‌مدیره»
+    
+                warn = (
+                    "❗️از آنجا که «مدیرعامل خارج از سهامداران» انتخاب کردید، باید مشخصات حداقل 4 نفر را وارد کنید (یعنی تعداد اعضای هیئت‌مدیره حداقل 3 نفر بعلاوه 1 نفر مدیرعامل خارج از اعضای هیئت‌مدیره) .\n"
+                    "تعداد فعلی کافی نیست. لطفاً تعداد اعضای هیئت‌مدیره را حداقل 4 نفر انتخاب کنید:"
+                )
+                context.bot.send_message(chat_id=chat_id, text=warn, reply_markup=main_keyboard())
+                if 'remember_last_question' in globals():
+                    remember_last_question(context, "تعداد اعضای هیئت‌مدیره را وارد کنید (اعداد فارسی):")
+                context.bot.send_message(chat_id=chat_id, text="تعداد اعضای هیئت‌مدیره را وارد کنید (اعداد فارسی):", reply_markup=main_keyboard())
+                return
+    
+        # در غیر این صورت یا اگر شرط برقرار بود → ادامهٔ فلو: پرسش حق‌امضا برای همین عضو
+        person_name = d.get(f"عضو {i} نام", "")
         context.bot.send_message(
             chat_id=chat_id,
-            text=f"وضعیت حق‌امضا برای «{d.get(f'عضو {i} نام','')}» را انتخاب کنید:",
+            text=f"وضعیت حق‌امضا برای «{person_name}» را انتخاب کنید:",
             reply_markup=sign_authority_keyboard(i)
         )
         return
+
 
 
     # --- حق‌امضا برای عضو i ---
@@ -4440,7 +4469,7 @@ def render_board_election_text(d: dict) -> str:
             lines.append(f"{nm} به شماره ملی {nid} به سمت {rol}{suffix}")
 
 
-    members_block = " ".join(lines).strip()
+    members_block = "\n".join(lines).strip()
 
     # بند حق‌امضا هوشمند
     sig_clause = build_signature_clause_roles(d)
