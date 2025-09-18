@@ -603,19 +603,6 @@ def cmd_ai(update, context):
         print("GROQ ERROR:", e)
 
 
-role_map = {
-    "chair":       "رئیس هیئت‌مدیره",
-    "vice":        "نایب رئیس هیئت‌مدیره",
-    "ceo":         "مدیرعامل",
-    "member":      "عضو هیئت‌مدیره",
-    "ceo_chair":   "مدیرعامل و رئیس هیئت‌مدیره",
-    "ceo_vice":    "مدیرعامل و نایب رئیس هیئت‌مدیره",
-    "ceo_member":  "مدیرعامل و عضو هیئت‌مدیره",
-}
-d[f"عضو {i} سمت کد"] = code
-d[f"عضو {i} سمت"]    = role_map.get(code, "عضو هیئت‌مدیره")
-
-
 
 # --- [A] کیبورد انتخاب سمت عضو هیئت‌مدیره ---
 def roles_keyboard(member_index: int):
@@ -736,64 +723,58 @@ def handle_inline_callbacks(update: Update, context: CallbackContext):
         return
     chat_id = q.message.chat_id if hasattr(q.message, "chat_id") else q.message.chat.id
     d = user_data.setdefault(chat_id, {})
-    data = q.data or ""
-    try: q.answer()
-    except: pass
+    payload = q.data or ""   # مهم: از اسم 'payload' استفاده کن، نه 'data'
 
-    # --- انتخاب موضوع: انتخاب مدیران ---
-    if data == "topic:board_election":
-        d.clear()
-        d["موضوع صورتجلسه"] = "انتخاب مدیران"
-        d["step"] = 0  # بریم سراغ انتخاب نوع شرکت
-        send_company_type_menu(chat_id, context)
-        return
-
-    # --- انتخاب نوع شرکت ---
-    if data in ("سهامی خاص", "مسئولیت محدود"):
-        d["نوع شرکت"] = data
-        # فقط برای سهامی خاص این سناریو فعال است
-        if d.get("موضوع صورتجلسه") == "انتخاب مدیران":
-            if data != "سهامی خاص":
-                context.bot.send_message(chat_id=chat_id, text="این صورتجلسه فعلاً فقط برای «سهامی خاص» پشتیبانی می‌شود.")
-                send_topic_menu(chat_id, context)
-                return
-            # شروع مراحل
-            d["step"] = 1
-            label = get_label("نام شرکت")
-            if 'remember_last_question' in globals(): remember_last_question(context, label)
-            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
-            return
-        # در غیر این صورت بقیه سناریوهای قبلی تو...
+    # --- سایر payload ها ... ---
 
     # --- انتخاب سمت برای عضو i ---
-    if data.startswith("role:"):
-        # payload مثل "role:3:ceo"
-        try:
-            _, idx_str, code = data.split(":")
-            i = int(idx_str)
-        except:
+    if payload.startswith("role:"):
+        # payload: "role:{i}:{code}"
+        parts = payload.split(":")
+        if len(parts) < 3:
             context.bot.send_message(chat_id=chat_id, text="انتخاب سمت نامعتبر بود.")
             return
 
-        d[f"عضو {i} سمت کد"] = code
-        # برچسب فارسی سمت برای استفاده در متن اعضا
-        role_map = {"chair": "رئیس هیئت‌مدیره", "vice": "نایب رئیس هیئت‌مدیره", "ceo": "مدیرعامل", "member": "عضو هیئت‌مدیره"}
-        d[f"عضو {i} سمت"] = role_map.get(code, "عضو هیئت‌مدیره")
+        idx_str = parts[1]
+        code = parts[2]  # chair | vice | ceo | member | ceo_chair | ceo_vice | ceo_member
+        try:
+            i = int(idx_str)
+        except ValueError:
+            context.bot.send_message(chat_id=chat_id, text="شناسه عضو نامعتبر بود.")
+            return
 
-        # اگر مدیرعامل شد → سؤال اضافی
-        if code.startswith("ceo"):  # شامل ceo, ceo_chair, ceo_vice, ceo_member
+        # ذخیرهٔ سمت
+        role_map = {
+            "chair":       "رئیس هیئت‌مدیره",
+            "vice":        "نایب رئیس هیئت‌مدیره",
+            "ceo":         "مدیرعامل",
+            "member":      "عضو هیئت‌مدیره",
+            # سه گزینهٔ ترکیبی:
+            "ceo_chair":   "مدیرعامل و رئیس هیئت‌مدیره",
+            "ceo_vice":    "مدیرعامل و نایب رئیس هیئت‌مدیره",
+            "ceo_member":  "مدیرعامل و عضو هیئت‌مدیره",
+        }
+        d[f"عضو {i} سمت کد"] = code
+        d[f"عضو {i} سمت"]    = role_map.get(code, "عضو هیئت‌مدیره")
+
+        # اگر مدیرعامل (یا نقش‌های ترکیبیِ شامل مدیرعامل) بود → سؤال اضافه
+        if code.startswith("ceo"):
             context.bot.send_message(
                 chat_id=chat_id,
                 text="آیا مدیرعامل خارج از سهامداران است؟",
                 reply_markup=ceo_outside_keyboard(i)
             )
             return
-            
-        # در غیر این صورت مستقیم بریم سراغ حق‌امضا
-        context.bot.send_message(chat_id=chat_id,
-                                 text=f"وضعیت حق‌امضا برای «{d.get(f'عضو {i} نام','')}» را انتخاب کنید:",
-                                 reply_markup=sign_authority_keyboard(i))
+
+        # وگرنه مستقیم بریم سراغ حق‌امضا
+        context.bot.send_message(
+            chat_id=chat_id,
+            text=f"وضعیت حق‌امضا برای «{d.get(f'عضو {i} نام','')}» را انتخاب کنید:",
+            reply_markup=sign_authority_keyboard(i)
+        )
         return
+
+
 
     # --- پاسخ به سؤال «مدیرعامل خارج از سهامداران؟» ---
     if data.startswith("ceo_out:"):
