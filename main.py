@@ -615,6 +615,7 @@ def ceo_outside_keyboard(member_index: int):
     ]
     return InlineKeyboardMarkup(kb)
 
+
 # --- [D] سازنده‌ی بند «حق‌امضا هوشمند» ---
 def build_signature_clause_roles(d: dict) -> str:
     """
@@ -692,6 +693,42 @@ def build_signature_clause_roles(d: dict) -> str:
     return (
         f"مکاتبات عادی و اداری با امضاء {n_txt} همراه با مهر شرکت معتبر می باشد"
     )
+
+
+def build_signatures_block(d: dict) -> str:
+    """
+    اسامی اعضای هیئت‌مدیره را دو‌تایی در هر خط چاپ می‌کند.
+    اگر تعداد فرد باشد، نفر آخر در یک خط تنها می‌آید.
+    فاصله‌ی بین دو اسم با NBSP پر می‌شود تا در کلاینت تلگرام جمع نشود.
+    """
+    try:
+        total = int(fa_to_en_number(str(d.get("تعداد اعضای هیئت مدیره", 0)) or "0"))
+    except Exception:
+        total = 0
+
+    names = []
+    for i in range(1, total + 1):
+        nm = (d.get(f"عضو {i} نام", "") or "").strip()
+        if nm:
+            names.append(nm)
+
+    if not names:
+        return ""
+
+    NBSP = "\u00A0"  # non-breaking space
+    GAP  = NBSP * 40  # مقدار فاصله بین دو اسم را می‌توانی کم/زیاد کنی (مثلاً 20 یا 40)
+
+    lines = []
+    for idx in range(0, len(names), 2):
+        left  = names[idx]
+        right = names[idx + 1] if idx + 1 < len(names) else ""
+        if right:
+            lines.append(f"     {left}{GAP}{right}")
+        else:
+            lines.append(f"     {left}")
+
+    return "امضاء اعضای هیات مدیره\n\n" + "\n".join(lines)
+
 
 
 
@@ -869,7 +906,9 @@ def handle_inline_callbacks(update: Update, context: CallbackContext):
                 remember_last_question(context, label)
             context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
         else:
-            # --- پایان ورود حق‌امضا برای آخرین عضو → اعتبارسنجی حداقل‌ها ---
+            # --- پایان ورود حق‌امضا برای آخرین عضو ---
+        
+            # 1) حداقل یک امضاکننده برای «بهادار/تعهدآور» و حداقل یک امضاکننده برای «عادی/اداری»
             b_count = 0
             n_count = 0
             for j in range(1, total + 1):
@@ -880,7 +919,7 @@ def handle_inline_callbacks(update: Update, context: CallbackContext):
                     n_count += 1
         
             if b_count < 1 or n_count < 1:
-                # ❗️شرط رعایت نشده → پاک‌سازی کامل اعضا + خودِ تعداد + بازگشت به سؤال تعداد
+                # پاک‌سازی کامل اعضا + خودِ تعداد → بازگشت به سؤال «تعداد اعضای هیئت‌مدیره»
                 for j in range(1, total + 1):
                     for key in (
                         f"عضو {j} نام",
@@ -891,31 +930,70 @@ def handle_inline_callbacks(update: Update, context: CallbackContext):
                         f"عضو {j} مدیرعامل بیرون سهامداران؟",
                     ):
                         d.pop(key, None)
-        
                 d.pop("تعداد اعضای هیئت مدیره", None)
                 d["board_index"] = 1
-                d["step"] = 7  # ← برگرد به سؤال تعداد اعضا
+                d["step"] = 7
         
                 warn = (
                     "❗️برای اعتبار صورتجلسه، باید حداقل یک امضاکننده برای «اوراق و اسناد بهادار و تعهد‌آور» "
                     "و حداقل یک امضاکننده برای «مکاتبات عادی و اداری» انتخاب شود.\n"
-                    "اطلاعات اعضای هیئت‌مدیره پاک شد. لطفاً دوباره تعداد اعضای هیئت‌مدیره را وارد کنید."
+                    "اطلاعات اعضای هیئت‌مدیره پاک شد. لطفاً تعداد اعضای هیئت‌مدیره را دوباره وارد کنید (اعداد فارسی):"
                 )
-                label = "تعداد اعضای هیئت‌مدیره را وارد کنید (اعداد فارسی):"
-        
                 context.bot.send_message(chat_id=chat_id, text=warn, reply_markup=main_keyboard())
                 if 'remember_last_question' in globals():
-                    remember_last_question(context, label)
-                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
+                    remember_last_question(context, "تعداد اعضای هیئت‌مدیره را وارد کنید (اعداد فارسی):")
+                context.bot.send_message(chat_id=chat_id, text="تعداد اعضای هیئت‌مدیره را وارد کنید (اعداد فارسی):", reply_markup=main_keyboard())
                 return
         
-            # اگر شرط‌ها برقرار بود → ادامهٔ فلو (وکیل)
+            # 2) الزام وجودِ نقش‌ها: مدیرعامل + رئیس + نایب رئیس + عضو هیئت‌مدیره
+            role_codes = []
+            for j in range(1, total + 1):
+                rc = d.get(f"عضو {j} سمت کد")
+                if rc:
+                    role_codes.append(rc)
+        
+            has_ceo    = any(rc in ("ceo", "ceo_chair", "ceo_vice", "ceo_member") for rc in role_codes)
+            has_chair  = any(rc in ("chair", "ceo_chair") for rc in role_codes)
+            has_vice   = any(rc in ("vice", "ceo_vice") for rc in role_codes)
+            has_member = any(rc in ("member", "ceo_member") for rc in role_codes)
+        
+            if not (has_ceo and has_chair and has_vice and has_member):
+                # پاک‌سازی کامل اعضا + خودِ تعداد → بازگشت به سؤال «تعداد اعضای هیئت‌مدیره»
+                for j in range(1, total + 1):
+                    for key in (
+                        f"عضو {j} نام",
+                        f"عضو {j} کد ملی",
+                        f"عضو {j} سمت",
+                        f"عضو {j} سمت کد",
+                        f"عضو {j} حق‌امضا",
+                        f"عضو {j} مدیرعامل بیرون سهامداران؟",
+                    ):
+                        d.pop(key, None)
+                d.pop("تعداد اعضای هیئت مدیره", None)
+                d["board_index"] = 1
+                d["step"] = 7
+        
+                warn = (
+                    "❗️ترکیب سمت‌ها ناقص است. باید حتماً «مدیرعامل»، «رئیس هیئت‌مدیره»، «نایب رئیس هیئت‌مدیره» و "
+                    "«عضو هیئت‌مدیره» در میان اعضا انتخاب شوند.\n"
+                    "نقش‌های ترکیبی که شامل هیئت‌مدیره هستند قابل قبول‌اند (مثلاً «مدیرعامل و رئیس هیئت‌مدیره»، "
+                    "«مدیرعامل و نایب رئیس هیئت‌مدیره»، «مدیرعامل و عضو هیئت‌مدیره»).\n"
+                    "اطلاعات اعضای هیئت‌مدیره پاک شد. :"
+                )
+                context.bot.send_message(chat_id=chat_id, text=warn, reply_markup=main_keyboard())
+                if 'remember_last_question' in globals():
+                    remember_last_question(context, "تعداد اعضای هیئت‌مدیره را وارد کنید (اعداد فارسی):")
+                context.bot.send_message(chat_id=chat_id, text="تعداد اعضای هیئت‌مدیره را وارد کنید (اعداد فارسی):", reply_markup=main_keyboard())
+                return
+        
+            # اگر هر دو شرط برقرار بود → ادامهٔ فلو (وکیل)
             d["step"] = 9
             label = get_label("وکیل") if 'get_label' in globals() else "نام وکیل را وارد کنید:"
             if 'remember_last_question' in globals():
                 remember_last_question(context, label)
             context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard())
             return
+
 
 
     # فوروارد کردن بقیه payload ها به هندلرهای موجود (مثل روزنامه و ...)
@@ -4493,10 +4571,7 @@ def render_board_election_text(d: dict) -> str:
 
 امضاء اعضای هیات مدیره
 
-     {(d.get("عضو 1 نام",""))}                                        {(d.get("عضو 2 نام",""))}  
-                    
-
-     {(d.get("عضو 3 نام",""))}
+{build_signatures_block(d)}
 """.strip()
     return text_out
 
