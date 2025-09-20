@@ -4065,49 +4065,115 @@ def handle_back(update: Update, context: CallbackContext):
 
 
     # --------------------------------------
-    # بازگشت: انتخاب مدیران - سهامی خاص
+    # بازگشت: انتخاب مدیران - سهامی خاص (بازنویسی‌شده و همسان با فلو رفت)
     # --------------------------------------
     if موضوع == "انتخاب مدیران" and نوع_شرکت == "سهامی خاص":
-        # مسیر خطی 2..6
+    
+        # مراحل پایه: 2..6 (یک‌قدم عقب)
         if 2 <= step <= 6:
             prev_step = step - 1
             order = ["نام شرکت","شماره ثبت","شناسه ملی","سرمایه","تاریخ","ساعت"]
-            key = order[prev_step - 1] if prev_step - 1 < len(order) else None
+            key = order[prev_step - 1] if (prev_step - 1) < len(order) else None
+    
             if prev_step == 1:
-                data.pop("نام شرکت", None); data["step"] = 1
-                context.bot.send_message(chat_id=chat_id, text=get_label("نام شرکت")); return
+                data.pop("نام شرکت", None)
+                data["step"] = 1
+                label = get_label("نام شرکت")
+                if 'remember_last_question' in globals(): remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard()); return
+    
             if key:
-                data.pop(key, None); data["step"] = prev_step
-                context.bot.send_message(chat_id=chat_id, text=get_label(key)); return
+                data.pop(key, None)
+                data["step"] = prev_step
+                label = get_label(key)
+                if 'remember_last_question' in globals(): remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard()); return
     
-        # قبل از ورود به حلقه اعضا
+        # از ۷ به ۶ (قبل از حلقهٔ اعضا)
         if step == 7:
-            data.pop("ساعت", None); data["step"] = 6
-            context.bot.send_message(chat_id=chat_id, text=get_label("ساعت")); return
+            data.pop("ساعت", None)
+            data["step"] = 6
+            label = get_label("ساعت")
+            if 'remember_last_question' in globals(): remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard()); return
     
-        # حلقه اعضا (step=8)
+        # حلقهٔ اعضا: step=8
         if step == 8:
-            i = data.get("board_index", 1)
+            i = int(data.get("board_index", 1))
             fa_i = str(i).translate(str.maketrans("0123456789","۰۱۲۳۴۵۶۷۸۹"))
-            if f"عضو {i} نام" not in data:
-                if i == 1:
-                    data.pop("تعداد اعضای هیئت مدیره", None); data["step"] = 7
-                    context.bot.send_message(chat_id=chat_id, text="تعداد اعضای هیئت‌مدیره را وارد کنید (اعداد فارسی):"); return
-                prev_i = i - 1
-                data["board_index"] = prev_i
-                data.pop(f"عضو {prev_i} کد ملی", None)
-                context.bot.send_message(chat_id=chat_id, text=f"کد ملی عضو هیئت‌مدیره {str(prev_i).translate(str.maketrans('0123456789','۰۱۲۳۴۵۶۷۸۹'))} را وارد کنید (اعداد فارسی):"); return
-            if f"عضو {i} کد ملی" not in data:
-                data.pop(f"عضو {i} نام", None)
-                context.bot.send_message(chat_id=chat_id, text=f"نام عضو هیئت‌مدیره {fa_i} را وارد کنید (مثال: آقای ... / خانم ...):"); return
-            # اگر سمت/حق‌امضا را با دکمه می‌گیریم، برگشت در همین مرحله کافی است.
+            prefix = f"عضو {i}"
     
+            # الف) اگر هنوز «نام عضو i» نگرفته‌ایم → روی نام i هستیم
+            if f"{prefix} نام" not in data:
+                # اگر i=1 → برگرد به «تعداد اعضا»
+                if i == 1:
+                    data.pop("تعداد اعضای هیئت مدیره", None)
+                    data["step"] = 7
+                    label = "تعداد اعضای هیئت‌مدیره را وارد کنید (اعداد فارسی):"
+                    if 'remember_last_question' in globals(): remember_last_question(context, label)
+                    context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard()); return
+    
+                # i>1 → برگرد یک عضو عقب و آن عضو را از نو از «نام» بپرس
+                j = i - 1
+                data["board_index"] = j
+                # پاک‌سازی کامل عضو j (نام/کدملی/سمت/حق‌امضا/سؤال مدیرعامل)
+                for k in (
+                    f"عضو {j} نام",
+                    f"عضو {j} کد ملی",
+                    f"عضو {j} سمت",
+                    f"عضو {j} سمت کد",
+                    f"عضو {j} حق‌امضا",
+                    f"عضو {j} مدیرعامل بیرون سهامداران؟",
+                ):
+                    data.pop(k, None)
+    
+                fa_j = str(j).translate(str.maketrans("0123456789","۰۱۲۳۴۵۶۷۸۹"))
+                label = f"نام عضو هیئت‌مدیره {fa_j} را وارد کنید (مثال: آقای ... / خانم ...):"
+                if 'remember_last_question' in globals(): remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard()); return
+    
+            # ب) اگر «نام» داریم ولی «کد ملی عضو i» نداریم → برگرد به «نام عضو i»
+            if f"{prefix} کد ملی" not in data:
+                data.pop(f"{prefix} نام", None)
+                label = f"نام عضو هیئت‌مدیره {fa_i} را وارد کنید (مثال: آقای ... / خانم ...):"
+                if 'remember_last_question' in globals(): remember_last_question(context, label)
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard()); return
+    
+            # ج) اگر نام و کدملی هر دو ثبت شده‌اند (و منتظر دکمه‌های سمت/حق‌امضا هستیم)
+            #    برگرد به «کد ملی عضو i»
+            data.pop(f"{prefix} کد ملی", None)
+            label = f"کد ملی عضو هیئت‌مدیره {fa_i} را وارد کنید (اعداد فارسی):"
+            if 'remember_last_question' in globals(): remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard()); return
+    
+        # از «وکیل» (step=9) به آخرین عضو برگرد
         if step == 9:
-            data.pop("وکیل", None); data["step"] = 8
-            # برگرد به ادامه حلقه/عضو آخر برای اطمینان، از کاربر بخواهیم اگر لازم است اصلاح کند
-            i = data.get("board_index", int(fa_to_en_number(str(data.get("تعداد اعضای هیئت مدیره", 1)))))
-            context.bot.send_message(chat_id=chat_id, text=f"در صورت نیاز می‌توانید اطلاعات عضو {str(i).translate(str.maketrans('0123456789','۰۱۲۳۴۵۶۷۸۹'))} را اصلاح کنید یا {get_label('وکیل')} را دوباره وارد کنید.", reply_markup=main_keyboard())
-            return
+            data.pop("وکیل", None)
+            total = 0
+            try:
+                total = int(fa_to_en_number(str(data.get("تعداد اعضای هیئت مدیره", 0)) or "0"))
+            except Exception:
+                total = 1
+    
+            j = total if total > 0 else 1
+            data["board_index"] = j
+            # پاک‌سازی کامل عضو آخر تا از «نام عضو j» شروع شود
+            for k in (
+                f"عضو {j} نام",
+                f"عضو {j} کد ملی",
+                f"عضو {j} سمت",
+                f"عضو {j} سمت کد",
+                f"عضو {j} حق‌امضا",
+                f"عضو {j} مدیرعامل بیرون سهامداران؟",
+            ):
+                data.pop(k, None)
+    
+            fa_j = str(j).translate(str.maketrans("0123456789","۰۱۲۳۴۵۶۷۸۹"))
+            data["step"] = 8
+            label = f"نام عضو هیئت‌مدیره {fa_j} را وارد کنید (مثال: آقای ... / خانم ...):"
+            if 'remember_last_question' in globals(): remember_last_question(context, label)
+            context.bot.send_message(chat_id=chat_id, text=label, reply_markup=main_keyboard()); return
+
 
 
     
