@@ -18,7 +18,9 @@ from collections import defaultdict
 from telegram.ext import Dispatcher
 from telegram import ReplyKeyboardRemove
 from urllib.parse import quote
-
+import time
+import re
+from typing import Dict, Any, List
 
 TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
@@ -46,6 +48,12 @@ CONTACT_MOBILE_INTL = "989128687292"  # همان شماره ولی بدون صف
 DEFAULT_WHATSAPP_TEXT = "سلام، برای راهنمایی و ثبت صورتجلسه راهنمایی می‌خواستم."
 THANKYOU_BRAND = "ثبت کوشا"           # نام برند شما
 
+TTL_SECONDS = 7 * 24 * 60 * 60
+
+USER_PHONE: Dict[int, Dict[str, Any]] = {}      # chat_id -> {"phone": str, "saved_at": ts, "meta": {...}}
+ACTIVITY_LOG: Dict[int, List[Dict[str, Any]]] = {}  # chat_id -> [{"ts": ts, "event": str, "meta": dict}, ...]
+
+FA_TO_EN_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
 
 GROQ_MODEL_QUALITY = "llama-3.3-70b-versatile" # کیفیت بالاتر
 GROQ_MODEL = GROQ_MODEL_QUALITY
@@ -129,6 +137,101 @@ def _lazy_import_docx():
     from docx.enum.text import WD_PARAGRAPH_ALIGNMENT as _WD
     Document, Pt, qn, WD_PARAGRAPH_ALIGNMENT = _Document, _Pt, _qn, _WD
     DOCX_IMPORTED = True
+
+        # -------------------------------
+        # توابع گرفتن شماره موبایل
+        # -------------------------------
+
+def fa_to_en(s: str) -> str:
+    return (s or "").translate(FA_TO_EN_DIGITS)
+
+def normalize_phone(s: str) -> str:
+    s = fa_to_en(s)
+    s = re.sub(r"\D+", "", s)  # فقط رقم‌ها
+    # پترن‌های قابل قبول: 09xxxxxxxxx یا 9xxxxxxxxx یا 989xxxxxxxxx یا +989xxxxxxxxx
+    if s.startswith("0098"):
+        s = s[4:]
+    if s.startswith("98"):
+        s = s[2:]
+    if s.startswith("0"):
+        s = s[1:]
+    # حالا باید 10 رقمی و با 9 شروع شود
+    if len(s) == 10 and s.startswith("9"):
+        return "+989" + s[1:]
+    return ""  # نامعتبر
+
+def is_valid_phone_text(s: str) -> bool:
+    return bool(normalize_phone(s))
+
+def set_user_phone(chat_id: int, phone_raw: str, meta: Dict[str, Any] | None = None) -> str:
+    phone = normalize_phone(phone_raw)
+    if not phone:
+        return ""
+    USER_PHONE[chat_id] = {
+        "phone": phone,
+        "saved_at": time.time(),
+        "meta": meta or {}
+    }
+    prune_expired(chat_id)  # پاکسازی لاگ قدیمی همین کاربر
+    return phone
+
+def get_user_phone(chat_id: int) -> str:
+    rec = USER_PHONE.get(chat_id)
+    if rec and (time.time() - rec["saved_at"] <= TTL_SECONDS):
+        return rec["phone"]
+    # منقضی شده
+    USER_PHONE.pop(chat_id, None)
+    return ""
+
+def log_activity(chat_id: int, event: str, meta: Dict[str, Any] | None = None) -> None:
+    ACTIVITY_LOG.setdefault(chat_id, [])
+    ACTIVITY_LOG[chat_id].append({
+        "ts": time.time(),
+        "event": event,
+        "meta": meta or {}
+    })
+    prune_expired(chat_id)
+
+def get_activity_last_week(chat_id: int) -> List[Dict[str, Any]]:
+    now = time.time()
+    return [e for e in ACTIVITY_LOG.get(chat_id, []) if now - e["ts"] <= TTL_SECONDS]
+
+def prune_expired(chat_id: int | None = None) -> None:
+    now = time.time()
+    targets = [chat_id] if chat_id is not None else list(set(USER_PHONE.keys()) | set(ACTIVITY_LOG.keys()))
+    for cid in targets:
+        # phone
+        if cid in USER_PHONE and now - USER_PHONE[cid]["saved_at"] > TTL_SECONDS:
+            USER_PHONE.pop(cid, None)
+        # activities
+        if cid in ACTIVITY_LOG:
+            ACTIVITY_LOG[cid] = [e for e in ACTIVITY_LOG[cid] if now - e["ts"] <= TTL_SECONDS]
+            if not ACTIVITY_LOG[cid]:
+                ACTIVITY_LOG.pop(cid, None)
+
+REQUEST_PHONE_TEXT = "📱 لطفاً شماره موبایل خود را ارسال کنید (یا دکمه ارسال شماره را بزنید):"
+
+def phone_request_keyboard():
+    kb = [[KeyboardButton("ارسال شماره من", request_contact=True)]]
+    return ReplyKeyboardMarkup(kb, resize_keyboard=True, one_time_keyboard=True)
+
+def ask_for_phone(chat_id, context):
+    context.user_data["awaiting_phone"] = True
+    context.bot.send_message(
+        chat_id=chat_id,
+        text=REQUEST_PHONE_TEXT,
+        reply_markup=phone_request_keyboard()
+    )
+
+def confirm_phone_and_continue(chat_id, context, phone: str):
+    context.user_data["awaiting_phone"] = False
+    context.bot.send_message(
+        chat_id=chat_id,
+        text=f"✅ شماره شما ثبت شد: {phone}\nحالا موضوع صورتجلسه را انتخاب کنید:",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    # ادامه‌ی فلو معمول شما
+    send_topic_menu(chat_id, context)
 
     
 def is_valid_persian_national_id(s: str) -> bool:
@@ -481,13 +584,23 @@ def send_company_type_menu(chat_id, context):
 def start(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     user_data[chat_id] = {"step": 0}
+
     update.message.reply_text(
         "به خدمات ثبتی کوشا خوش آمدید 🙏🏼\n"
         "در کمتر از چند دقیقه، صورتجلسه رسمی و دقیق شرکت خود را آماده دریافت خواهید کرد.\n"
-        "همه‌چیز طبق آخرین قوانین ثبت شرکت‌ها تنظیم می‌شود.",
-        reply_markup=main_keyboard()
+        "همه‌چیز طبق آخرین قوانین ثبت شرکت‌ها تنظیم می‌شود."
     )
-    send_topic_menu(chat_id, context)
+
+    # اگر قبلاً در ۷ روز اخیر شماره دارد، مستقیم منو را بده
+    saved = get_user_phone(chat_id)
+    if saved:
+        context.user_data["awaiting_phone"] = False
+        context.bot.send_message(chat_id=chat_id, text=f"📌 شماره تأییدشده شما: {saved}")
+        send_topic_menu(chat_id, context)
+    else:
+        # در غیر این صورت، شماره را بگیریم
+        ask_for_phone(chat_id, context)
+
 
 
 
@@ -1033,7 +1146,53 @@ def handle_message(update: Update, context: CallbackContext):
             if not context.user_data.get("ai_mode"):
                 return
             return
-            
+
+        # ========== گارد شماره موبایل (اولویت قبل از هر چیز) ==========
+        # اگر در وضعیت انتظار شماره هستیم، فقط شماره را پردازش کن:
+        if context.user_data.get("awaiting_phone"):
+            # اگر کاربر Contact فرستاد
+            if update.message.contact and update.message.contact.phone_number:
+                phone_raw = update.message.contact.phone_number
+                phone = set_user_phone(chat_id, phone_raw, meta={
+                    "first_name": getattr(update.message.from_user, "first_name", ""),
+                    "last_name": getattr(update.message.from_user, "last_name", ""),
+                    "username": getattr(update.message.from_user, "username", "")
+                })
+                if phone:
+                    confirm_phone_and_continue(chat_id, context, phone)
+                    return
+                else:
+                    context.bot.send_message(
+                        chat_id=chat_id,
+                        text="❗️شماره معتبر نیست. لطفاً دوباره ارسال کنید.",
+                        reply_markup=phone_request_keyboard()
+                    )
+                    return
+
+            # اگر کاربر شماره را تایپ کرد
+            if text and is_valid_phone_text(text):
+                phone = set_user_phone(chat_id, text, meta={
+                    "first_name": getattr(update.message.from_user, "first_name", ""),
+                    "last_name": getattr(update.message.from_user, "last_name", ""),
+                    "username": getattr(update.message.from_user, "username", "")
+                })
+                confirm_phone_and_continue(chat_id, context, phone)
+                return
+
+            # ورودی نامعتبر
+            context.bot.send_message(
+                chat_id=chat_id,
+                text="❗️لطفاً شماره معتبر وارد کنید (مثال: 09xxxxxxxxx) یا دکمه «ارسال شماره من» را بزنید.",
+                reply_markup=phone_request_keyboard()
+            )
+            return
+
+        # اگر هنوز شماره ثبت نشده، درخواست شماره بده و جلوی ادامه‌ی فلو را بگیر:
+        if not get_user_phone(chat_id):
+            ask_for_phone(chat_id, context)
+            return
+        # ============================================================
+
         # اگر کاربر دکمه بازگشت زد
         if text == BACK_BTN:
             handle_back(update, context)
@@ -1052,6 +1211,10 @@ def handle_message(update: Update, context: CallbackContext):
                 reply_markup=main_keyboard()
             )
             return
+
+        # ===== ادامه‌ی منطق‌های قبلی شما از اینجا به بعد =====
+        # ...
+
     
         # تعریف فیلدهای پایه برای تغییر آدرس مسئولیت محدود (در صورت نیاز)
         common_fields = ["نام شرکت", "شماره ثبت", "شناسه ملی", "سرمایه", "تاریخ", "ساعت", "آدرس جدید", "کد پستی", "وکیل"]
