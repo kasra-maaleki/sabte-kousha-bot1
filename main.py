@@ -49,6 +49,9 @@ DEFAULT_WHATSAPP_TEXT = "سلام، برای راهنمایی و ثبت صورت
 THANKYOU_BRAND = "ثبت کوشا"           # نام برند شما
 
 TTL_SECONDS = 7 * 24 * 60 * 60
+PHONE_TTL_SECONDS = 7 * 24 * 3600
+phones = {}        # chat_id -> {"phone": "+98912...", "ts": epoch}
+phone_index = {}   # "+98912..." -> set(chat_id,...)
 
 USER_PHONE: Dict[int, Dict[str, Any]] = {}      # chat_id -> {"phone": str, "saved_at": ts, "meta": {...}}
 ACTIVITY_LOG: Dict[int, List[Dict[str, Any]]] = {}  # chat_id -> [{"ts": ts, "event": str, "meta": dict}, ...]
@@ -146,6 +149,43 @@ def fa_to_en(s: str) -> str:
     return (s or "").translate(FA_TO_EN_DIGITS)
 
 def normalize_phone(s: str) -> str:
+    s = fa_to_en_number(s or "")
+    s = re.sub(r"\D+", "", s)           # فقط رقم
+    if s.startswith("0"):               # 09... => 989...
+        s = "98" + s[1:]
+    if len(s) == 10 and s.startswith("9"):
+        s = "98" + s
+    if not s.startswith("98") and not s.startswith("+98"):
+        # اگر کاربر فرمت دیگری داد، همان را نگه می‌داریم
+        pass
+    if not s.startswith("+"):
+        s = "+" + s
+    return s
+
+def request_phone_keyboard():
+    return ReplyKeyboardMarkup(
+        [[KeyboardButton("📱 ارسال شماره موبایل", request_contact=True)],
+         [KeyboardButton(BACK_BTN)]],
+        resize_keyboard=True, one_time_keyboard=True
+    )
+
+def cleanup_phones():
+    now = time.time()
+    for cid, info in list(phones.items()):
+        if now - info["ts"] > PHONE_TTL_SECONDS:
+            phone_index.get(info["phone"], set()).discard(cid)
+            phones.pop(cid, None)
+
+def save_phone(chat_id: int, phone: str, context: CallbackContext):
+    cleanup_phones()
+    p = normalize_phone(phone)
+    phones[chat_id] = {"phone": p, "ts": int(time.time())}
+    phone_index.setdefault(p, set()).add(chat_id)
+    context.user_data["phone"] = p
+    context.user_data.pop("awaiting", None)
+    context.bot.send_message(chat_id, f"✅ شماره شما ثبت شد: {p}", reply_markup=main_keyboard())
+
+def normalize_phone(s: str) -> str:
     s = fa_to_en(s)
     s = re.sub(r"\D+", "", s)  # فقط رقم‌ها
     # پترن‌های قابل قبول: 09xxxxxxxxx یا 9xxxxxxxxx یا 989xxxxxxxxx یا +989xxxxxxxxx
@@ -159,6 +199,20 @@ def normalize_phone(s: str) -> str:
     if len(s) == 10 and s.startswith("9"):
         return "+989" + s[1:]
     return ""  # نامعتبر
+
+def handle_contact(update: Update, context: CallbackContext):
+    chat_id = update.effective_chat.id
+    contact = update.message.contact
+    if not contact or not contact.phone_number:
+        context.bot.send_message(chat_id, "❗️شماره نامعتبر بود. دوباره دکمه «📱 ارسال شماره موبایل» را بزنید.")
+        return
+
+    save_phone(chat_id, contact.phone_number, context)
+
+    # اگر هنوز وارد فرم نشده بود، منوی موضوعات را نشان بده
+    if "موضوع صورتجلسه" not in user_data.get(chat_id, {}):
+        send_topic_menu(chat_id, context)
+
 
 def is_valid_phone_text(s: str) -> bool:
     return bool(normalize_phone(s))
@@ -597,6 +651,7 @@ def start(update: Update, context: CallbackContext):
         context.user_data["awaiting_phone"] = False
         context.bot.send_message(chat_id=chat_id, text=f"📌 شماره تأییدشده شما: {saved}")
         send_topic_menu(chat_id, context)
+        
     else:
         # در غیر این صورت، شماره را بگیریم
         ask_for_phone(chat_id, context)
@@ -1149,6 +1204,18 @@ def handle_message(update: Update, context: CallbackContext):
 
         # ========== گارد شماره موبایل (اولویت قبل از هر چیز) ==========
         # اگر در وضعیت انتظار شماره هستیم، فقط شماره را پردازش کن:
+        if context.user_data.get("awaiting") == "phone":
+            m = re.search(r"[۰-۹0-9]{10,}", (update.message.text or ""))
+            if m:
+                save_phone(update.effective_chat.id, m.group(0), context)
+                if "موضوع صورتجلسه" not in user_data.get(update.effective_chat.id, {}):
+                    send_topic_menu(update.effective_chat.id, context)
+                return
+            context.bot.send_message(update.effective_chat.id,
+                "شماره معتبر پیدا نشد. لطفاً با دکمه زیر شماره موبایل را بفرستید.",
+                reply_markup=request_phone_keyboard())
+            return
+
         if context.user_data.get("awaiting_phone"):
             # اگر کاربر Contact فرستاد
             if update.message.contact and update.message.contact.phone_number:
@@ -5481,6 +5548,7 @@ dispatcher.add_handler(MessageHandler(Filters.text & Filters.regex(f"^{re.escape
 dispatcher.add_handler(CallbackQueryHandler(resume_from_ai, pattern=f"^{AI_RESUME}$"), group=0)
 
 # ===== گروه 1: هندلرهای عمومی =====
+dispatcher.add_handler(MessageHandler(Filters.contact, handle_contact), group=1)
 dispatcher.add_handler(CommandHandler("ai", cmd_ai), group=1)
 dispatcher.add_handler(CommandHandler("start", start), group=1)
 dispatcher.add_handler(CallbackQueryHandler(button_handler, pattern=fr"^(?!{AI_RESUME}$).+"),group=1)
