@@ -85,6 +85,42 @@ def ask_groq(user_text: str, system_prompt: str = None, max_tokens: int = 1024) 
     return resp.choices[0].message.content.strip()
 
 
+
+# --- AI Landing Options (labels must match exactly) ---
+AI_OPT_MINUTES   = "⚡️ ساخت انواع صورتجلسات در چند دقیقه"
+AI_OPT_QA        = "💬 مشاوره مجازی قانون تجارت و ثبت شرکت"
+AI_OPT_COMP_TYPE = "🏢 راهنمای انتخاب نوع شرکت"
+AI_OPT_NAME      = "🧠 پیشنهاد هوشمند نام شرکت"
+AI_OPT_CONTRACT  = "📝 تولید قرارداد آماده"
+AI_OPT_FORMAL    = "✍️ تبدیل متن ساده به متن رسمی/حقوقی"
+
+
+def ai_services_keyboard():
+    from telegram import ReplyKeyboardMarkup, KeyboardButton
+    rows = [
+        [KeyboardButton(AI_OPT_MINUTES)],
+        [KeyboardButton(AI_OPT_QA), KeyboardButton(AI_OPT_COMP_TYPE)],
+        [KeyboardButton(AI_OPT_NAME), KeyboardButton(AI_OPT_CONTRACT)],
+        [KeyboardButton(AI_OPT_FORMAL)],
+    ]
+    # اگر بک دکمهٔ سراسری داری، می‌تونی اینجا هم اضافه‌اش کنی
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True, one_time_keyboard=False)
+
+def send_ai_services_menu(chat_id, context):
+    text = (
+        "👇 لطفاً یکی از گزینه‌های زیر را انتخاب کنید:\n"
+        f"• {AI_OPT_MINUTES}\n"
+        f"• {AI_OPT_QA}\n"
+        f"• {AI_OPT_COMP_TYPE}\n"
+        f"• {AI_OPT_NAME}\n"
+        f"• {AI_OPT_CONTRACT}\n"
+        f"• {AI_OPT_FORMAL}\n"
+    )
+    context.bot.send_message(chat_id=chat_id, text=text, reply_markup=ai_services_keyboard())
+
+
+
+
 # تابع ساخت کیبورد اصلی که فقط دکمه بازگشت داره
 def main_keyboard():
     return ReplyKeyboardMarkup(
@@ -285,7 +321,9 @@ def confirm_phone_and_continue(chat_id, context, phone: str):
         reply_markup=ReplyKeyboardRemove()
     )
     # ادامه‌ی فلو معمول شما
-    send_topic_menu(chat_id, context)
+    user_data.setdefault(chat_id, {}).update({"step": 0, "onboarding_ai_shown": True})
+    send_ai_services_menu(chat_id, context)
+
 
     
 def is_valid_persian_national_id(s: str) -> bool:
@@ -1208,9 +1246,11 @@ def handle_message(update: Update, context: CallbackContext):
             m = re.search(r"[۰-۹0-9]{10,}", (update.message.text or ""))
             if m:
                 save_phone(update.effective_chat.id, m.group(0), context)
-                if "موضوع صورتجلسه" not in user_data.get(update.effective_chat.id, {}):
-                    send_topic_menu(update.effective_chat.id, context)
+                # ✅ به‌جای ارسال مستقیم منوی موضوعات، منوی AI را بفرست
+                user_data.setdefault(update.effective_chat.id, {}).update({"step": 0, "onboarding_ai_shown": True})
+                send_ai_services_menu(update.effective_chat.id, context)
                 return
+
             context.bot.send_message(update.effective_chat.id,
                 "شماره معتبر پیدا نشد. لطفاً با دکمه زیر شماره موبایل را بفرستید.",
                 reply_markup=request_phone_keyboard())
@@ -1264,6 +1304,26 @@ def handle_message(update: Update, context: CallbackContext):
         if text == BACK_BTN:
             handle_back(update, context)
             return
+            
+
+        # --- AI Landing Options ---
+        if text in (AI_OPT_MINUTES, AI_OPT_QA, AI_OPT_COMP_TYPE, AI_OPT_NAME, AI_OPT_CONTRACT, AI_OPT_FORMAL):
+            if text == AI_OPT_MINUTES:
+                send_topic_menu(chat_id, context)
+                return
+            pending_map = {
+                AI_OPT_QA:        "💬 «مشاوره مجازی قانون تجارت» به‌زودی فعال می‌شود.",
+                AI_OPT_COMP_TYPE: "🏢 «راهنمای انتخاب نوع شرکت» به‌زودی فعال می‌شود.",
+                AI_OPT_NAME:      "🧠 «پیشنهاد هوشمند نام شرکت» به‌زودی فعال می‌شود.",
+                AI_OPT_CONTRACT:  "📝 «تولید قرارداد آماده» به‌زودی فعال می‌شود.",
+                AI_OPT_FORMAL:    "✍️ «تبدیل متن ساده به متن رسمی/حقوقی» به‌زودی فعال می‌شود.",
+            }
+            context.bot.send_message(chat_id=chat_id, text=pending_map.get(text, "به‌زودی…"))
+            send_ai_services_menu(chat_id, context)
+            return
+
+
+
     
         data = user_data[chat_id]
         step = data.get("step", 0)
