@@ -1245,10 +1245,12 @@ def handle_message(update: Update, context: CallbackContext):
         if context.user_data.get("awaiting") == "phone":
             m = re.search(r"[۰-۹0-9]{10,}", (update.message.text or ""))
             if m:
-                save_phone(update.effective_chat.id, m.group(0), context)
-                # ✅ به‌جای ارسال مستقیم منوی موضوعات، منوی AI را بفرست
-                user_data.setdefault(update.effective_chat.id, {}).update({"step": 0, "onboarding_ai_shown": True})
-                send_ai_services_menu(update.effective_chat.id, context)
+                phone = set_user_phone(update.effective_chat.id, m.group(0), meta={
+                    "first_name": getattr(update.message.from_user, "first_name", ""),
+                    "last_name": getattr(update.message.from_user, "last_name", ""),
+                    "username": getattr(update.message.from_user, "username", "")
+                })
+                confirm_phone_and_continue(update.effective_chat.id, context, phone)
                 return
 
             context.bot.send_message(update.effective_chat.id,
