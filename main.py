@@ -247,7 +247,9 @@ def handle_contact(update: Update, context: CallbackContext):
 
     # اگر هنوز وارد فرم نشده بود، منوی موضوعات را نشان بده
     if "موضوع صورتجلسه" not in user_data.get(chat_id, {}):
-        send_topic_menu(chat_id, context)
+        user_data.setdefault(chat_id, {}).update({"step": 0, "onboarding_ai_shown": True})
+        send_ai_services_menu(chat_id, context)
+
 
 
 def is_valid_phone_text(s: str) -> bool:
