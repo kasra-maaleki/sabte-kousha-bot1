@@ -107,17 +107,11 @@ def ai_services_keyboard():
     return ReplyKeyboardMarkup(rows, resize_keyboard=True, one_time_keyboard=False)
 
 def send_ai_services_menu(chat_id, context):
-    text = (
-        "👇 لطفاً یکی از گزینه‌های زیر را انتخاب کنید:\n"
-        f"• {AI_OPT_MINUTES}\n"
-        f"• {AI_OPT_QA}\n"
-        f"• {AI_OPT_COMP_TYPE}\n"
-        f"• {AI_OPT_NAME}\n"
-        f"• {AI_OPT_CONTRACT}\n"
-        f"• {AI_OPT_FORMAL}\n"
+    context.bot.send_message(
+        chat_id=chat_id,
+        text="🤖 لطفاً یکی از خدمات زیر را انتخاب کنید:",
+        reply_markup=ai_services_keyboard()
     )
-    context.bot.send_message(chat_id=chat_id, text=text, reply_markup=ai_services_keyboard())
-
 
 
 
