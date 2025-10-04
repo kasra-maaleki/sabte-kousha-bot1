@@ -1307,8 +1307,13 @@ def handle_message(update: Update, context: CallbackContext):
         # --- AI Landing Options ---
         if text in (AI_OPT_MINUTES, AI_OPT_QA, AI_OPT_COMP_TYPE, AI_OPT_NAME, AI_OPT_CONTRACT, AI_OPT_FORMAL):
             if text == AI_OPT_MINUTES:
+                # تنظیم وضعیت برای ورود به فلو صورتجلسه
+                data = user_data.setdefault(chat_id, {})
+                data["step"] = 0
+                data.pop("موضوع صورتجلسه", None)
                 send_topic_menu(chat_id, context)
                 return
+                
             pending_map = {
                 AI_OPT_QA:        "💬 «مشاوره مجازی قانون تجارت» به‌زودی فعال می‌شود.",
                 AI_OPT_COMP_TYPE: "🏢 «راهنمای انتخاب نوع شرکت» به‌زودی فعال می‌شود.",
