@@ -213,7 +213,12 @@ def save_phone(chat_id: int, phone: str, context: CallbackContext):
     phone_index.setdefault(p, set()).add(chat_id)
     context.user_data["phone"] = p
     context.user_data.pop("awaiting", None)
+
+    # ✅ استفاده از تابع یکپارچه
+    set_user_phone(chat_id, p)
+
     context.bot.send_message(chat_id, f"✅ شماره شما ثبت شد: {p}", reply_markup=main_keyboard())
+
 
 def normalize_phone(s: str) -> str:
     s = fa_to_en(s)
