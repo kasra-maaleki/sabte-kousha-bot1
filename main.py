@@ -259,10 +259,13 @@ def handle_contact(update: Update, context: CallbackContext):
 
     save_phone(chat_id, contact.phone_number, context)
 
-    # اگر هنوز وارد فرم نشده بود، منوی موضوعات را نشان بده
-    if "موضوع صورتجلسه" not in user_data.get(chat_id, {}):
-        user_data.setdefault(chat_id, {}).update({"step": 0, "onboarding_ai_shown": True})
-        send_ai_services_menu(chat_id, context)
+    # 👇 پاک کردن حالت انتظار شماره
+    context.user_data["awaiting_phone"] = False
+    context.user_data.pop("awaiting", None)
+
+    # ✅ حالا منوی خدمات هوش مصنوعی را نشان بده
+    user_data.setdefault(chat_id, {}).update({"step": 0, "onboarding_ai_shown": True})
+    send_ai_services_menu(chat_id, context)
 
 
 
@@ -331,14 +334,14 @@ def ask_for_phone(chat_id, context):
 
 def confirm_phone_and_continue(chat_id, context, phone: str):
     context.user_data["awaiting_phone"] = False
+    context.user_data.pop("awaiting", None)
+
     context.bot.send_message(
         chat_id=chat_id,
         text=f"✅ شماره شما ثبت شد: {phone}\n👇 لطفاً یکی از خدمات هوش مصنوعی را انتخاب کنید:",
         reply_markup=ai_services_keyboard()
     )
-    # ادامه‌ی فلو معمول شما
-    user_data.setdefault(chat_id, {}).update({"step": 0, "onboarding_ai_shown": True})
-    send_ai_services_menu(chat_id, context)
+
 
 
     
