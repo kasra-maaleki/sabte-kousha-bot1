@@ -215,13 +215,24 @@ def save_phone(chat_id: int, phone: str, context: CallbackContext):
     phones[chat_id] = {"phone": p, "ts": int(time.time())}
     phone_index.setdefault(p, set()).add(chat_id)
 
-    # 👇 نکته مهم: حتماً داخل USER_PHONE هم ذخیره شود
+    # در هر دو ساختار ذخیره شود
     USER_PHONE[chat_id] = {"phone": p, "saved_at": time.time(), "meta": {}}
 
     context.user_data["phone"] = p
     context.user_data.pop("awaiting", None)
 
     print("✅ phone saved for", chat_id, ":", p)
+
+    context.bot.send_message(
+        chat_id=chat_id,
+        text=f"✅ شماره شما ثبت شد: {p}",
+        reply_markup=main_keyboard()
+    )
+
+
+    print("DBG: save_phone called with", phone)
+    print("DBG: USER_PHONE now:", USER_PHONE)
+
 
 
 def normalize_phone(s: str) -> str:
@@ -322,8 +333,8 @@ def confirm_phone_and_continue(chat_id, context, phone: str):
     context.user_data["awaiting_phone"] = False
     context.bot.send_message(
         chat_id=chat_id,
-        text=f"✅ شماره شما ثبت شد: {phone}\nحالا موضوع صورتجلسه را انتخاب کنید:",
-        reply_markup=ReplyKeyboardRemove()
+        text=f"✅ شماره شما ثبت شد: {phone}\n👇 لطفاً یکی از خدمات هوش مصنوعی را انتخاب کنید:",
+        reply_markup=ai_services_keyboard()
     )
     # ادامه‌ی فلو معمول شما
     user_data.setdefault(chat_id, {}).update({"step": 0, "onboarding_ai_shown": True})
@@ -1300,6 +1311,9 @@ def handle_message(update: Update, context: CallbackContext):
                 reply_markup=phone_request_keyboard()
             )
             return
+      
+        print("DBG: get_user_phone result:", get_user_phone(chat_id))
+        print("DBG: context.user_data phone:", context.user_data.get("phone"))
 
         # اگر هنوز شماره ثبت نشده، درخواست شماره بده و جلوی ادامه‌ی فلو را بگیر:
         if not get_user_phone(chat_id):
