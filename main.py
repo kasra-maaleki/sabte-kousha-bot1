@@ -214,8 +214,15 @@ def save_phone(chat_id: int, phone: str, context: CallbackContext):
     context.user_data["phone"] = p
     context.user_data.pop("awaiting", None)
 
-    # ✅ استفاده از تابع یکپارچه
-    set_user_phone(chat_id, p)
+    # ✅ اضافه شد: همگام‌سازی با get_user_phone
+    USER_PHONE[chat_id] = {
+        "phone": p,
+        "saved_at": time.time(),
+        "meta": {
+            "source": "save_phone",
+            "username": getattr(getattr(context, "user_data", {}), "username", None)
+        }
+    }
 
     context.bot.send_message(chat_id, f"✅ شماره شما ثبت شد: {p}", reply_markup=main_keyboard())
 
