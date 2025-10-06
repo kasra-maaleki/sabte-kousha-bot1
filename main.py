@@ -207,24 +207,21 @@ def cleanup_phones():
             phones.pop(cid, None)
 
 def save_phone(chat_id: int, phone: str, context: CallbackContext):
-    cleanup_phones()
     p = normalize_phone(phone)
+    if not p:
+        return
+
+    cleanup_phones()
     phones[chat_id] = {"phone": p, "ts": int(time.time())}
     phone_index.setdefault(p, set()).add(chat_id)
+
+    # 👇 نکته مهم: حتماً داخل USER_PHONE هم ذخیره شود
+    USER_PHONE[chat_id] = {"phone": p, "saved_at": time.time(), "meta": {}}
+
     context.user_data["phone"] = p
     context.user_data.pop("awaiting", None)
 
-    # ✅ اضافه شد: همگام‌سازی با get_user_phone
-    USER_PHONE[chat_id] = {
-        "phone": p,
-        "saved_at": time.time(),
-        "meta": {
-            "source": "save_phone",
-            "username": getattr(getattr(context, "user_data", {}), "username", None)
-        }
-    }
-
-    context.bot.send_message(chat_id, f"✅ شماره شما ثبت شد: {p}", reply_markup=main_keyboard())
+    print("✅ phone saved for", chat_id, ":", p)
 
 
 def normalize_phone(s: str) -> str:
