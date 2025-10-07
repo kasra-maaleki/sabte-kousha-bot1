@@ -1246,7 +1246,7 @@ def handle_message(update: Update, context: CallbackContext):
         
         chat_id = update.message.chat_id
         text = (update.message.text or "").strip()
-        user_data.setdefault(chat_id, {"step": 0})
+        data = user_data.setdefault(chat_id, {"step": 0})
     
         # --- گارد حالت AI: ابتدای تابع ---
         if context.user_data.get("ai_mode"):
@@ -1334,7 +1334,7 @@ def handle_message(update: Update, context: CallbackContext):
         if text in (AI_OPT_MINUTES, AI_OPT_QA, AI_OPT_COMP_TYPE, AI_OPT_NAME, AI_OPT_CONTRACT, AI_OPT_FORMAL):
             if text == AI_OPT_MINUTES:
                 # تنظیم وضعیت برای ورود به فلو صورتجلسه
-                data = user_data.setdefault(chat_id, {})
+                
                 data["step"] = 0
                 data.pop("موضوع صورتجلسه", None)
                 send_topic_menu(chat_id, context)
@@ -1342,7 +1342,7 @@ def handle_message(update: Update, context: CallbackContext):
 
             # اگر کاربر گزینه «پیشنهاد هوشمند نام شرکت» را انتخاب کرد
             if text == AI_OPT_NAME:
-                data = user_data.setdefault(chat_id, {})
+               
                 data["ai_mode"] = "name_suggestion"
                 data["step"] = 1
                 context.bot.send_message(
@@ -1419,8 +1419,6 @@ def handle_message(update: Update, context: CallbackContext):
 
 
 
-    
-        data = user_data[chat_id]
         step = data.get("step", 0)
     
         موضوع = data.get("موضوع صورتجلسه")
