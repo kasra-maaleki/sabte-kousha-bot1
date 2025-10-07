@@ -95,6 +95,13 @@ AI_OPT_CONTRACT  = "📝 تولید قرارداد آماده"
 AI_OPT_FORMAL    = "✍️ تبدیل متن ساده به متن رسمی/حقوقی"
 
 
+def back_keyboard():
+    # import محلی تا وابستگی بالا ایجاد نشه
+    from telegram import ReplyKeyboardMarkup, KeyboardButton
+    rows = [[KeyboardButton(BACK_BTN)]]
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True, one_time_keyboard=False)
+
+
 def ai_services_keyboard():
     from telegram import ReplyKeyboardMarkup, KeyboardButton
     rows = [
