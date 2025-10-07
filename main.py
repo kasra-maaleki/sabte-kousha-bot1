@@ -60,6 +60,7 @@ FA_TO_EN_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
 
 GROQ_MODEL_QUALITY = "llama-3.3-70b-versatile" # کیفیت بالاتر
 GROQ_MODEL = GROQ_MODEL_QUALITY
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-70b-versatile")
 
 TOPIC_EXTEND_ROLES = "تمدید سمت اعضا"
 
@@ -1407,10 +1408,15 @@ def handle_message(update: Update, context: CallbackContext):
         
                 # فراخوانی هوش مصنوعی متصل به Groq
                 try:
-                    from ai_module import ask_groq
-                    response = ask_groq(user_prompt, system_prompt)
+                    # ❌ از این استفاده نکن: from ai_module import ask_groq
+                    response = ask_groq(user_prompt, system_prompt, max_tokens=300)
                 except Exception as e:
+                    # لاگ دقیق تا بفهمی ایراد چیه
+                    import traceback, sys
+                    print("ERR: ask_groq failed:", e, file=sys.stderr)
+                    traceback.print_exc()
                     response = f"❗️خطا در ارتباط با هوش مصنوعی:\n{e}"
+
         
                 # ارسال نتیجه
                 context.bot.send_message(
