@@ -1348,7 +1348,7 @@ def handle_message(update: Update, context: CallbackContext):
                 context.bot.send_message(
                     chat_id=chat_id,
                     text="🧩 لطفاً بفرمایید چه کلمه‌ی اصلی برای نام شرکت در نظر دارید؟\n(مثلاً: آتی، پارس، نیک، آراد...)",
-                    reply_markup=ReplyKeyboardRemove()
+                    reply_markup=back_keyboard()
                 )
                 return
 
@@ -3590,6 +3590,34 @@ def handle_back(update: Update, context: CallbackContext):
         data["step"] = 0
         context.bot.send_message(chat_id=chat_id, text="به انتخاب نوع شرکت برگشتید.")
         send_company_type_menu(chat_id, context)
+        return
+
+    # بازگشت پیشنهاد هوشمند نام شرکت
+    if data.get("ai_mode") == "name_suggestion":
+        step = data.get("step", 0)
+
+        # اگر در مرحله 2 بودیم → پاسخ مرحله 2 را پاک کن و برگرد به مرحله 1
+        if step >= 2:
+            # پاک‌سازی پاسخ مرحله 2
+            if "حوزه فعالیت" in data:
+                data.pop("حوزه فعالیت", None)
+
+            data["step"] = 1
+            context.bot.send_message(
+                chat_id=chat_id,
+                text="🔁 دوباره: چه کلمه‌ی اصلی برای نام شرکت در نظر دارید؟\n"
+                     "مثال: آتی، پارس، نیک، آراد…",
+                reply_markup=back_keyboard()  # دکمه بازگشت ثابت
+            )
+            return
+
+        # اگر در مرحله 1 یا نامشخص بود → پاسخ مرحله 1 را هم پاک کن و از فلو خارج شو
+        if "کلمه اصلی" in data:
+            data.pop("کلمه اصلی", None)
+
+        data.pop("ai_mode", None)
+        data["step"] = 0
+        send_ai_services_menu(chat_id, context)
         return
 
     # --------------------------------------
