@@ -60,7 +60,7 @@ FA_TO_EN_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
 
 GROQ_MODEL_QUALITY = "llama-3.3-70b-versatile" # کیفیت بالاتر
 GROQ_MODEL = GROQ_MODEL_QUALITY
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-70b-versatile")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 TOPIC_EXTEND_ROLES = "تمدید سمت اعضا"
 
