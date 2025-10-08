@@ -1278,7 +1278,7 @@ def handle_message(update: Update, context: CallbackContext):
         # --- گارد حالت AI: ابتدای تابع ---
         if context.user_data.get("ai_mode"):
             # اگر دکمه برگشت منویی داری، همین‌جا هندل کن (اختیاری)
-            if text == AI_BACK_TO_MENU:
+            if text == BACK_BTN:
                 context.user_data["ai_mode"] = False
                 send_ai_services_menu(chat_id, context)
                 return
