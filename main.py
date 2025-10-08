@@ -1277,8 +1277,10 @@ def handle_message(update: Update, context: CallbackContext):
     
         # --- گارد حالت AI: ابتدای تابع ---
         if context.user_data.get("ai_mode"):
-            # این خط، همان آپدیتی که start AI را زده، از ادامه‌ی پردازش بازمی‌دارد
-            if text == AI_ASK_TEXT:
+            # اگر دکمه برگشت منویی داری، همین‌جا هندل کن (اختیاری)
+            if text == AI_BACK_TO_MENU:
+                context.user_data["ai_mode"] = False
+                send_ai_services_menu(chat_id, context)
                 return
     
             handle_ai_text(update, context)
@@ -1356,6 +1358,9 @@ def handle_message(update: Update, context: CallbackContext):
             handle_back(update, context)
             return
 
+        if text == AI_ASK_TEXT:
+            enter_ai_mode_reply(update, context)  # همین تابع خودت که ai_mode را True می‌کند
+            return
 
 
         # --- AI Landing Options ---
