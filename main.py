@@ -1469,13 +1469,14 @@ def handle_message(update: Update, context: CallbackContext):
         نوع_شرکت = data.get("نوع شرکت")
     
         if "موضوع صورتجلسه" not in data and not context.user_data.get("ai_mode"):
-              context.bot.send_message(
+            context.bot.send_message(
                 chat_id=chat_id,
                 text="لطفاً ابتدا موضوع صورتجلسه را انتخاب کنید. برای شروع مجدد /start را ارسال کنید .",
                 reply_markup=main_keyboard()
             )
             return
 
+        
         # ===== ادامه‌ی منطق‌های قبلی شما از اینجا به بعد =====
         # ...
 
