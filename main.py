@@ -1364,7 +1364,7 @@ def handle_message(update: Update, context: CallbackContext):
 
 
         # --- AI Landing Options ---
-        if text in (AI_OPT_COMP_TYPE, AI_OPT_CONTRACT, AI_OPT_FORMAL):
+        if text in (AI_OPT_MINUTES, AI_OPT_QA, AI_OPT_COMP_TYPE, AI_OPT_NAME, AI_OPT_CONTRACT, AI_OPT_FORMAL):
             if text == AI_OPT_MINUTES:
                 # تنظیم وضعیت برای ورود به فلو صورتجلسه
                 
@@ -1386,9 +1386,10 @@ def handle_message(update: Update, context: CallbackContext):
                 return
 
             # نگاشت مستقیم: «مشاوره …» ≡ «سؤال دارم» + حذف بک اینلاین
-            if text == AI_OPT_QA:
-                context.user_data["ai_skip_inline_back"] = True  # ← فقط برای این بار
-                text = AI_ASK_TEXT
+           if text == AI_OPT_QA:
+                context.user_data["ai_skip_inline_back"] = True  # اگر نمی‌خواهی اینلاین‌بکِ صورتجلسه نمایش داده شود
+                enter_ai_mode_reply(update, context)
+                return
 
 
 
@@ -1467,8 +1468,8 @@ def handle_message(update: Update, context: CallbackContext):
         موضوع = data.get("موضوع صورتجلسه")
         نوع_شرکت = data.get("نوع شرکت")
     
-        if "موضوع صورتجلسه" not in data:
-            context.bot.send_message(
+        if "موضوع صورتجلسه" not in data and not context.user_data.get("ai_mode"):
+              context.bot.send_message(
                 chat_id=chat_id,
                 text="لطفاً ابتدا موضوع صورتجلسه را انتخاب کنید. برای شروع مجدد /start را ارسال کنید .",
                 reply_markup=main_keyboard()
