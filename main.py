@@ -42,6 +42,8 @@ BACK_BTN = "⬅️ بازگشت"
 AI_RESUME   = "AI_RESUME"   # کال‌بک دکمه‌ی بازگشت از AI
 AI_ASK_TEXT = "❓ سؤال دارم"
 
+
+
 # --- Contact Config (ویرایش کن) ---
 CONTACT_MOBILE_IR = "09128687292"     # شماره موبایل برای تماس (فرمت داخلی ایران)
 CONTACT_MOBILE_INTL = "989128687292"  # همان شماره ولی بدون صفر و با 98 برای واتساپ
@@ -101,6 +103,12 @@ def back_keyboard():
     from telegram import ReplyKeyboardMarkup, KeyboardButton
     rows = [[KeyboardButton(BACK_BTN)]]
     return ReplyKeyboardMarkup(rows, resize_keyboard=True, one_time_keyboard=False)
+
+def ai_consult_keyboard():
+    from telegram import ReplyKeyboardMarkup, KeyboardButton
+    rows = [[KeyboardButton(AI_BACK_TO_MENU)]]
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True)
+
 
 
 def ai_services_keyboard():
@@ -537,33 +545,40 @@ def send_thank_you_message_chatid(chat_id, context,
         
 
 
-def enter_ai_mode_reply(update: Update, context: CallbackContext):
+def enter_ai_mode_reply(update: Update, context: CallbackContext, sys_prompt: str = None):
     chat_id = update.effective_chat.id
     context.user_data["ai_mode"] = True
+    context.user_data["ai_sys_prompt"] = sys_prompt or (
+        "شما کارشناس قانون تجارت ایران و امور ثبت شرکت‌ها هستید. پاسخ دقیق، مرحله‌به‌مرحله و با ذکر نکات اجرایی بده."
+    )
+    context.user_data["ai_q_count"] = 0
+    context.user_data["ai_q_limit"] = AI_Q_LIMIT
 
-    # 1) ارسال پیامِ ورود و حذف کیبورد ثابت
     msg = update.message.reply_text(
         "🧠 حالت هوشمند ما فعال شد.\nسؤالت رو بپرس",
         reply_markup=ReplyKeyboardRemove()
     )
 
-    # 2) بلافاصله همان پیام را ویرایش کن و دکمهٔ اینلاین بازگشت را به آن اضافه کن
-    try:
-        msg.edit_reply_markup(
-            reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("↩️ برگشت به ادامه تنظیم صورتجلسه", callback_data=AI_RESUME)]]
+    # ✅ فقط اگر از مسیر «مشاوره…» نیامده باشد، دکمه اینلاین بک را بفرست
+    if not context.user_data.get("ai_skip_inline_back"):
+        try:
+            msg.edit_reply_markup(
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("↩️ بازگشت به ادامه تنظیم صورتجلسه", callback_data=AI_RESUME)]]
+                )
             )
-        )
-    except Exception as e:
-        # اگر به هر دلیل ویرایش نشد، (fallback) یک پیام ثانویه بفرست
-        context.bot.send_message(
-            chat_id=chat_id,
-            text="برای بازگشت از دکمهٔ زیر استفاده کن:",
-            reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("↩️ برگشت به ادامه تنظیم صورتجلسه", callback_data=AI_RESUME)]]
+        except Exception as e:
+            context.bot.send_message(
+                chat_id=chat_id,
+                text="برای بازگشت از دکمهٔ زیر استفاده کن:",
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("↩️ بازگشت به ادامه تنظیم صورتجلسه", callback_data=AI_RESUME)]]
+                )
             )
-        )
-        print("edit_reply_markup failed:", e)
+            print("edit_reply_markup failed:", e)
+
+    # 🧹 این فلگ فقط همان بار اول لازم است — پاکش کن که روی دفعات بعد اثر نگذارد
+    context.user_data.pop("ai_skip_inline_back", None)
 
 
 
@@ -604,6 +619,9 @@ def handle_ai_text(update, context):
     except Exception as e:
         update.message.reply_text("❌ خطا در دریافت پاسخ هوشمند. کمی بعد دوباره تلاش کنید.")
         print("GROQ ERROR:", e)
+
+
+
 
 def resume_from_ai(update, context):
     # 1) اگر از اینلاین‌باتن بود، فقط answer کن
@@ -1336,7 +1354,8 @@ def handle_message(update: Update, context: CallbackContext):
         if text == BACK_BTN:
             handle_back(update, context)
             return
-            
+
+
 
         # --- AI Landing Options ---
         if text in (AI_OPT_MINUTES, AI_OPT_QA, AI_OPT_COMP_TYPE, AI_OPT_NAME, AI_OPT_CONTRACT, AI_OPT_FORMAL):
@@ -1360,9 +1379,11 @@ def handle_message(update: Update, context: CallbackContext):
                 )
                 return
 
-            # نرمال‌سازی دکمه مشاوره مجازی به "سؤال دارم"
+            # نگاشت مستقیم: «مشاوره …» ≡ «سؤال دارم» + حذف بک اینلاین
             if text == AI_OPT_QA:
-                text = AI_ASK_TEXT  # همون متنی که قبلاً برای دکمه «سؤال دارم» تعریف کردی
+                context.user_data["ai_skip_inline_back"] = True  # ← فقط برای این بار
+                text = AI_ASK_TEXT
+
 
 
                 
