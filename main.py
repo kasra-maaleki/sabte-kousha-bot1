@@ -1358,7 +1358,7 @@ def handle_message(update: Update, context: CallbackContext):
 
 
         # --- AI Landing Options ---
-        if text in (AI_OPT_MINUTES, AI_OPT_QA, AI_OPT_COMP_TYPE, AI_OPT_NAME, AI_OPT_CONTRACT, AI_OPT_FORMAL):
+        if text in (AI_OPT_COMP_TYPE, AI_OPT_CONTRACT, AI_OPT_FORMAL):
             if text == AI_OPT_MINUTES:
                 # تنظیم وضعیت برای ورود به فلو صورتجلسه
                 
