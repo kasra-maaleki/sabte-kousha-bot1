@@ -734,7 +734,7 @@ def start(update: Update, context: CallbackContext):
     if saved:
         context.user_data["awaiting_phone"] = False
         context.bot.send_message(chat_id=chat_id, text=f"📌 شماره تأییدشده شما: {saved}")
-        send_topic_menu(chat_id, context)
+        send_ai_services_menu(chat_id, context)
         
     else:
         # در غیر این صورت، شماره را بگیریم
