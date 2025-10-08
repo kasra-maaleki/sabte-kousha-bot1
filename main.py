@@ -164,8 +164,25 @@ NEWSPAPERS = [
 ]
 
 
+
+
+def small_keyboard():
+    # انتخاب سریع تعداد شرکا
+    return ReplyKeyboardMarkup([["1 نفر","2 نفر","3 نفر","4 نفر یا بیشتر"], [BACK_BTN]], resize_keyboard=True)
+
+def yes_no_keyboard():
+    return ReplyKeyboardMarkup([["بله ✅","خیر ❌"], [BACK_BTN]], resize_keyboard=True)
+
+def board_need_keyboard():
+    return ReplyKeyboardMarkup([["هیئت‌مدیره 3 نفره می‌خواهم","مدیریت ساده/یک‌نفره کافیست"], [BACK_BTN]], resize_keyboard=True)
+
+def transfer_need_keyboard():
+    return ReplyKeyboardMarkup([["خیلی مهم است","اهمیت متوسط","اهمیت ندارد"], [BACK_BTN]], resize_keyboard=True)
 def is_persian_number(text):
     return all('۰' <= ch <= '۹' or ch.isspace() for ch in text)
+
+
+
 
 
 # تبدیل اعداد فارسی به انگلیسی
@@ -477,6 +494,7 @@ def handle_newspaper_choice(update: Update, context: CallbackContext):
     except Exception as e:
         context.bot.send_message(chat_id=chat_id, text=f"ثبت روزنامه انجام شد ولی در ادامه فرم مشکلی بود: {e}", reply_markup=main_keyboard())
 
+
 def build_contact_html(phone_ir: str, phone_intl: str, wa_text: str = "") -> str:
     """
     خروجی: متن HTML شامل لینک تماس مستقیم (tel:) و واتساپ (wa.me)
@@ -488,6 +506,7 @@ def build_contact_html(phone_ir: str, phone_intl: str, wa_text: str = "") -> str
     else:
         wa_link = f"<a href='{wa_base}'>چت در واتساپ</a>"
     return f"📞 {tel_link}\n💬 {wa_link}"
+
 
 def send_thank_you_message_chatid(chat_id, context,
                                   phone_ir=None, phone_intl=None,
@@ -552,15 +571,16 @@ def enter_ai_mode_reply(update: Update, context: CallbackContext, sys_prompt: st
     context.user_data["ai_sys_prompt"] = sys_prompt or (
         "شما کارشناس قانون تجارت ایران و امور ثبت شرکت‌ها هستید. پاسخ دقیق، مرحله‌به‌مرحله و با ذکر نکات اجرایی بده."
     )
+    # اگر محدودیت هم داری:
     context.user_data["ai_q_count"] = 0
-    context.user_data["ai_q_limit"] = AI_Q_LIMIT
+    context.user_data["ai_q_limit"] = globals().get("AI_Q_LIMIT", 5)
 
     msg = update.message.reply_text(
         "🧠 حالت هوشمند ما فعال شد.\nسؤالت رو بپرس",
         reply_markup=ReplyKeyboardRemove()
     )
 
-    # ✅ فقط اگر از مسیر «مشاوره…» نیامده باشد، دکمه اینلاین بک را بفرست
+    # ⛔️ فقط اگر از مسیر «مشاوره…» نیامده باشد، دکمه اینلاین را اضافه کن
     if not context.user_data.get("ai_skip_inline_back"):
         try:
             msg.edit_reply_markup(
@@ -578,8 +598,93 @@ def enter_ai_mode_reply(update: Update, context: CallbackContext, sys_prompt: st
             )
             print("edit_reply_markup failed:", e)
 
-    # 🧹 این فلگ فقط همان بار اول لازم است — پاکش کن که روی دفعات بعد اثر نگذارد
+    # 🧹 فلگ فقط برای همین بار بود؛ پاکش کن که دفعه بعد تاثیر نگذارد
     context.user_data.pop("ai_skip_inline_back", None)
+
+
+
+# ==== Recommendation builder for comp_type ====
+def build_comp_type_recommendation(data: dict) -> str:
+    score = 0
+    bullets = []
+
+    # 1) تعداد شرکا
+    t = data.get("CT_تعداد_شرکا","")
+    if t in ("1 نفر","2 نفر"):
+        score -= 1
+        bullets.append("تعداد شرکا کم است → «مسئولیت محدود» معمولاً ساده‌تر و سریع‌تر ثبت می‌شود.")
+    elif t == "3 نفر":
+        score += 1
+        bullets.append("حداقل 3 شریک دارید → «سهامی خاص» با پیش‌نیاز 3 سهامدار هم‌خوان است.")
+    elif t == "4 نفر یا بیشتر":
+        score += 1
+        bullets.append("تعداد شرکا بالا → سهامی خاص برای تقسیم سهام و شفافیت مناسب‌تر است.")
+
+    # 2) سرمایه
+    cap = int(data.get("CT_سرمایه", 0) or 0)
+    if cap >= 500_000_000:
+        score += 1
+        bullets.append("سرمایه نسبتاً بالا → سهامی خاص برای اعتبار/قراردادهای بزرگ مناسب‌تر است.")
+    else:
+        score -= 0.5
+        bullets.append("سرمایه کم/متوسط → «مسئولیت محدود» با تشریفات ساده‌تر به‌صرفه‌تر است.")
+
+    # 3) مناقصات/اعتبار بانکی
+    if data.get("CT_مناقصات", False):
+        score += 1.5
+        bullets.append("برنامه جدی برای مناقصات/اعتبار بانکی → سهامی خاص اعتبار بیشتری نزد کارفرما/بانک دارد.")
+    else:
+        score -= 0.5
+        bullets.append("تمرکز بر فعالیت‌های ساده/داخلی → «مسئولیت محدود» کفایت می‌کند.")
+
+    # 4) هیئت‌مدیره
+    if data.get("CT_هیئت_مدیره", False):
+        score += 1
+        bullets.append("تمایل به هیئت‌مدیره 3 نفره → «سهامی خاص» انتخاب طبیعی‌تری است.")
+    else:
+        score -= 0.5
+        bullets.append("مدیریت ساده/یک‌نفره → «مسئولیت محدود» عملی‌تر و سریع‌تر است.")
+
+    # 5) سهولت نقل‌وانتقال
+    tr = data.get("CT_انتقال","اهمیت متوسط")
+    if tr == "خیلی مهم است":
+        score += 1
+        bullets.append("سهولت نقل‌وانتقال مهم → «سهامی خاص» (سهام) انعطاف بهتری نسبت به سهم‌الشرکه دارد.")
+    elif tr == "اهمیت ندارد":
+        score -= 0.5
+        bullets.append("نقل‌وانتقال مهم نیست → «مسئولیت محدود» نیز گزینه خوبی است.")
+
+    if score >= 1:
+        title = "پیشنهاد: «سهامی خاص» ✅"
+        why = "با توجه به پاسخ‌ها، سهامی خاص از نظر اعتبار، مناقصات، تقسیم سهام و آینده‌نگری حرفه‌ای مناسب‌تر است."
+        next_hint = "اکنون می‌توانید از منوی اصلی مسیر صورتجلسه‌های متناسب با سهامی خاص را شروع کنید."
+    else:
+        title = "پیشنهاد: «مسئولیت محدود» ✅"
+        why = "با توجه به پاسخ‌ها، مسئولیت محدود به‌خاطر سرعت، هزینه کمتر و سادگی اداره مناسب‌تر است."
+        next_hint = "اکنون می‌توانید از منوی اصلی مسیر صورتجلسه‌های متناسب با مسئولیت محدود را شروع کنید."
+
+    bullet_text = "\n".join([f"• {b}" for b in bullets])
+    cap_fmt = f"{int(cap):,}".replace(",", "،")
+    recap = (
+        f"🔎 خلاصه پاسخ‌های شما:\n"
+        f"— تعداد شرکا: {t}\n"
+        f"— سرمایه: {cap_fmt} ریال\n"
+        f"— مناقصه/اعتبار بانکی: {'بله' if data.get('CT_مناقصات') else 'خیر'}\n"
+        f"— هیئت‌مدیره 3 نفره: {'بله' if data.get('CT_هیئت_مدیره') else 'خیر'}\n"
+        f"— اهمیت نقل‌وانتقال: {tr}\n"
+    )
+
+    return (
+        f"{title}\n\n{why}\n\n"
+        f"دلایل ارزیابی:\n{bullet_text}\n\n"
+        f"{recap}\n"
+        f"ℹ️ در صورت نیاز، تفاوت‌های حقوقی/عملیاتی را هم می‌توانم دقیق‌تر توضیح بدهم.\n"
+        f"{next_hint}"
+    )
+
+
+
+
 
 
 
@@ -1391,17 +1496,32 @@ def handle_message(update: Update, context: CallbackContext):
                 enter_ai_mode_reply(update, context)
                 return
 
-
-
                 
+            # === شروع فلو «راهنمای انتخاب نوع شرکت» ===
+            if text == AI_OPT_COMP_TYPE:
+                data["ai_mode"] = "comp_type"
+                data["step"] = 1
+                # پاکسازی پاسخ‌های قبلی این راهنما
+                for k in ["CT_تعداد_شرکا","CT_سرمایه","CT_مناقصات","CT_هیئت_مدیره","CT_انتقال"]:
+                    data.pop(k, None)
+        
+                context.bot.send_message(
+                    chat_id=chat_id,
+                    text="برای شروع راهنما، تعداد مؤسسین/شرکا را انتخاب کنید:",
+                    reply_markup=small_keyboard()
+                )
+                return
+        
+            # باقی گزینه‌ها که هنوز آماده نشده‌اند
             pending_map = {
-                AI_OPT_COMP_TYPE: "🏢 «راهنمای انتخاب نوع شرکت» به‌زودی فعال می‌شود.",
                 AI_OPT_CONTRACT:  "📝 «تولید قرارداد آماده» به‌زودی فعال می‌شود.",
                 AI_OPT_FORMAL:    "✍️ «تبدیل متن ساده به متن رسمی/حقوقی» به‌زودی فعال می‌شود.",
             }
             context.bot.send_message(chat_id=chat_id, text=pending_map.get(text, "به‌زودی…"))
             send_ai_services_menu(chat_id, context)
             return
+
+        
 
         # -------------------------------
         # فلو هوش مصنوعی: پیشنهاد نام شرکت (Groq API)
@@ -1460,6 +1580,84 @@ def handle_message(update: Update, context: CallbackContext):
                 data.pop("ai_mode", None)
                 data["step"] = 0
                 return
+
+        # -------------------------------
+        # فلو هوش مصنوعی: راهنمای انتخاب نوع شرکت (Groq API)
+        # -------------------------------
+
+        if data.get("ai_mode") == "comp_type":
+            step = int(data.get("step", 1))
+        
+            # دکمه بازگشت
+            if text == BACK_BTN:
+                prev = max(1, step - 1)
+                data["step"] = prev
+                if prev == 1:
+                    context.bot.send_message(chat_id=chat_id, text="برای شروع راهنما، تعداد مؤسسین/شرکا را انتخاب کنید:", reply_markup=small_keyboard()); return
+                if prev == 2:
+                    context.bot.send_message(chat_id=chat_id, text="حدود سرمایه‌ی اولیه (به ریال) چقدر است؟ (فقط عدد، مثل 200000000)", reply_markup=back_keyboard()); return
+                if prev == 3:
+                    context.bot.send_message(chat_id=chat_id, text="برنامه شرکت برای «مناقصات/مزایدات بزرگ و اعتبار بانکی» پررنگ است؟", reply_markup=yes_no_keyboard()); return
+                if prev == 4:
+                    context.bot.send_message(chat_id=chat_id, text="هیئت‌مدیره 3 نفره می‌خواهید یا مدیریت ساده کافیست؟", reply_markup=board_need_keyboard()); return
+                if prev == 5:
+                    context.bot.send_message(chat_id=chat_id, text="سهولت نقل‌وانتقال مالکیت چقدر مهم است؟", reply_markup=transfer_need_keyboard()); return
+        
+            # STEP 1: تعداد شرکا
+            if step == 1:
+                valid = ["1 نفر","2 نفر","3 نفر","4 نفر یا بیشتر"]
+                if text not in valid:
+                    context.bot.send_message(chat_id=chat_id, text="لطفاً از گزینه‌ها انتخاب کنید.", reply_markup=small_keyboard()); return
+                data["CT_تعداد_شرکا"] = text
+                data["step"] = 2
+                context.bot.send_message(chat_id=chat_id, text="حدود سرمایه‌ی اولیه (به ریال) چقدر است؟ (فقط عدد، مثل 200000000)", reply_markup=back_keyboard())
+                return
+        
+            # STEP 2: سرمایه
+            if step == 2:
+                digits = "".join(ch for ch in text if ch.isdigit())
+                if not digits:
+                    context.bot.send_message(chat_id=chat_id, text="❗️یک عدد وارد کنید (مثل 200000000).", reply_markup=back_keyboard()); return
+                data["CT_سرمایه"] = int(digits)
+                data["step"] = 3
+                context.bot.send_message(chat_id=chat_id, text="برنامه شرکت برای «مناقصات/مزایدات بزرگ و اعتبار بانکی» پررنگ است؟", reply_markup=yes_no_keyboard())
+                return
+        
+            # STEP 3: مناقصات/اعتبار
+            if step == 3:
+                if text not in ["بله ✅","خیر ❌"]:
+                    context.bot.send_message(chat_id=chat_id, text="یک گزینه را انتخاب کنید.", reply_markup=yes_no_keyboard()); return
+                data["CT_مناقصات"] = (text == "بله ✅")
+                data["step"] = 4
+                context.bot.send_message(chat_id=chat_id, text="هیئت‌مدیره 3 نفره می‌خواهید یا مدیریت ساده کافیست؟", reply_markup=board_need_keyboard())
+                return
+        
+            # STEP 4: هیئت‌مدیره
+            if step == 4:
+                if text not in ["هیئت‌مدیره 3 نفره می‌خواهم","مدیریت ساده/یک‌نفره کافیست"]:
+                    context.bot.send_message(chat_id=chat_id, text="از بین دو گزینه انتخاب کنید.", reply_markup=board_need_keyboard()); return
+                data["CT_هیئت_مدیره"] = (text == "هیئت‌مدیره 3 نفره می‌خواهم")
+                data["step"] = 5
+                context.bot.send_message(chat_id=chat_id, text="سهولت نقل‌وانتقال مالکیت چقدر مهم است؟", reply_markup=transfer_need_keyboard())
+                return
+        
+            # STEP 5: سهولت نقل‌وانتقال
+            if step == 5:
+                if text not in ["خیلی مهم است","اهمیت متوسط","اهمیت ندارد"]:
+                    context.bot.send_message(chat_id=chat_id, text="از بین گزینه‌ها انتخاب کنید.", reply_markup=transfer_need_keyboard()); return
+                data["CT_انتقال"] = text
+        
+                # محاسبه نتیجه
+                result_text = build_comp_type_recommendation(data)
+        
+                # خروج از AI این سناریو (فقط همین سناریو)
+                data["ai_mode"] = None
+                data["step"] = 0
+        
+                context.bot.send_message(chat_id=chat_id, text=result_text, reply_markup=main_keyboard())
+                send_ai_services_menu(chat_id, context)  # اگر می‌خواهی بعدش دوباره منوی AI نشان داده شود
+                return
+
 
 
 
