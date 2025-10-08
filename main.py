@@ -1386,7 +1386,7 @@ def handle_message(update: Update, context: CallbackContext):
                 return
 
             # نگاشت مستقیم: «مشاوره …» ≡ «سؤال دارم» + حذف بک اینلاین
-           if text == AI_OPT_QA:
+            if text == AI_OPT_QA:
                 context.user_data["ai_skip_inline_back"] = True  # اگر نمی‌خواهی اینلاین‌بکِ صورتجلسه نمایش داده شود
                 enter_ai_mode_reply(update, context)
                 return
