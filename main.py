@@ -765,35 +765,30 @@ def handle_ai_text(update, context):
         user_data.setdefault(chat_id, {})
         data = user_data[chat_id]
         step = data.get("step", 1)
-
-        # ایمنی: اگر step نامعتبر بود، 1 کن
         if step not in (1, 2):
             step = 1
             data["step"] = 1
-
+    
         try:
-            # گام 1: دریافت متن خام ساده
+            # --- گام 1: دریافت متن خام ---
             if step == 1:
-                # اگر کاربر یکی از گزینه‌های منو را زد، آن را متن خام حساب نکن
+                # اگر کاربر یکی از گزینه‌های منوی AI را زد، جلو نرو
                 if text in AI_TOP_OPTIONS:
-                    # فقط بازگشت را نشان بده و از پیشروی جلوگیری کن
-                    update.message.reply_text("برای تغییر سرویس، ابتدا «بازگشت» را بزنید.",
-                                              reply_markup=ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True))
+                    update.message.reply_text(
+                        "برای تغییر سرویس، ابتدا «⬅️ بازگشت» را بزنید.",
+                        reply_markup=back_keyboard()
+                    )
                     return
-
+    
                 if not text:
-                    # 1) بستن کیبوردهای قبلی
-                    update.message.reply_text(" ", reply_markup=ReplyKeyboardRemove())
-                    # 2) درخواست متن با کیبورد مینیمال
-                    kb = ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True)
-                    update.message.reply_text("📝 لطفاً متن ساده‌تان را ارسال کنید.", reply_markup=kb)
+                    # ❌ قبلاً: reply_text(" ", reply_markup=ReplyKeyboardRemove()) → BadRequest
+                    # ✅ مستقیم همان پیام درخواست را با کیبورد بازگشت بفرست:
+                    update.message.reply_text("📝 لطفاً متن ساده‌تان را ارسال کنید.", reply_markup=back_keyboard())
                     return
-
-                # اینجا واقعاً متن خام است
+    
                 data["FORMAL_RAW"] = text
                 data["step"] = 2
-
-                # انتخاب شدت/سبک رسمیت — کیبورد اختصاصی
+    
                 keyboard = [[
                     "🔒 خیلی رسمی و حقوقی",
                     "⚖️ رسمی و روان",
@@ -804,15 +799,16 @@ def handle_ai_text(update, context):
                     reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
                 )
                 return
-
-            # گام 2: دریافت سبک و تولید متن رسمی
+    
+            # --- گام 2: دریافت سبک ---
             if step == 2:
                 style = text
                 valid_styles = ("🔒 خیلی رسمی و حقوقی", "⚖️ رسمی و روان", "🤝 رسمی دوستانه")
                 if style not in valid_styles:
-                    # اگر چیز دیگری زد ( مثل دکمه‌های منو)، به کاربر اخطار بده
-                    update.message.reply_text("لطفاً یکی از گزینه‌های سبک را انتخاب کنید.",
-                                              reply_markup=ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True))
+                    update.message.reply_text(
+                        "لطفاً یکی از گزینه‌های سبک را انتخاب کنید.",
+                        reply_markup=back_keyboard()
+                    )
                     return
 
                 raw = (data.get("FORMAL_RAW", "") or "").strip()
@@ -1696,10 +1692,6 @@ def handle_message(update: Update, context: CallbackContext):
                 for k in ["FORMAL_RAW", "FORMAL_STYLE"]:
                     data.pop(k, None)
             
-                # 1) حذف هر کیبورد پایداری که روی صفحه مانده
-                update.message.reply_text(" ", reply_markup=ReplyKeyboardRemove())
-            
-                # 2) درخواست متن با کیبورد مینیمال (فقط «بازگشت»)
                 label = (
                     "📝 لطفاً متن ساده‌تان را ارسال کنید.\n"
                     "مثال: «یه متن می‌خوام برای اعلام تغییر ساعت کاری شرکت به اداره ثبت» یا متن کامل بند/نامه.\n\n"
