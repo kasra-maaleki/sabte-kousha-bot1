@@ -1686,28 +1686,30 @@ def handle_message(update: Update, context: CallbackContext):
                 return
 
 
-            # === شروع فلو «رتبدیل متن ساده به متن رسمی/حقوقی » ===
+            
+            # === شروع فلو «تبدیل متن ساده به متن رسمی/حقوقی» ===
             if text == AI_OPT_FORMAL:
                 chat_id = update.effective_chat.id
                 user_data.setdefault(chat_id, {})
                 data = user_data[chat_id]
             
-                # شروع حالت AI مخصوص رسمی‌سازی متن
                 context.user_data["ai_mode"] = "formalizer"
                 data["step"] = 1
-            
-                # پاکسازی پاسخ‌های قبلی این حالت (اگر قبلاً نیمه‌کاره مانده)
                 for k in ["FORMAL_RAW", "FORMAL_STYLE"]:
                     data.pop(k, None)
             
-                # از کاربر متن ساده را بگیر
+                # 1) حذف هر کیبورد پایداری که روی صفحه مانده
+                update.message.reply_text(" ", reply_markup=ReplyKeyboardRemove())
+            
+                # 2) درخواست متن با کیبورد مینیمال (فقط «بازگشت»)
                 label = (
                     "📝 لطفاً متن ساده‌تان را ارسال کنید.\n"
                     "مثال: «یه متن می‌خوام برای اعلام تغییر ساعت کاری شرکت به اداره ثبت» یا متن کامل بند/نامه.\n\n"
                     "نکته: اطلاعات حقیقی/حقوقی موجود را کامل بنویسید تا متن رسمی دقیق تولید شود."
                 )
-                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=small_keyboard())
+                context.bot.send_message(chat_id=chat_id, text=label, reply_markup=back_keyboard())
                 return
+
 
 
             
