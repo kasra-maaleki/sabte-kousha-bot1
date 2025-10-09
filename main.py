@@ -767,10 +767,13 @@ def handle_ai_text(update, context):
             # گام 1: دریافت متن خام ساده
             if step == 1:
                 if not text:
-                    # فقط دکمهٔ بازگشت را نشان بده؛ از کیبورد کوچک/ثابت استفاده نکن
+                    # 1) بستن کیبوردهای قبلی
+                    update.message.reply_text(" ", reply_markup=ReplyKeyboardRemove())
+                    # 2) درخواست متن با کیبورد مینیمال
                     kb = ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True)
                     update.message.reply_text("📝 لطفاً متن ساده‌تان را ارسال کنید.", reply_markup=kb)
                     return
+
 
                 data["FORMAL_RAW"] = text
                 data["step"] = 2
@@ -792,7 +795,7 @@ def handle_ai_text(update, context):
                 style = text
                 valid_styles = ("🔒 خیلی رسمی و حقوقی", "⚖️ رسمی و روان", "🤝 رسمی دوستانه")
                 if style not in valid_styles:
-                    # باز هم فقط دکمهٔ بازگشت را نگه داریم
+                    update.message.reply_text(" ", reply_markup=ReplyKeyboardRemove())
                     kb = ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True)
                     update.message.reply_text("لطفاً یکی از گزینه‌های سبک را انتخاب کنید.", reply_markup=kb)
                     return
