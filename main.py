@@ -42,7 +42,7 @@ BACK_BTN = "⬅️ بازگشت"
 AI_RESUME   = "AI_RESUME"   # کال‌بک دکمه‌ی بازگشت از AI
 AI_ASK_TEXT = "❓ سؤال دارم"
 AI_Q_LIMIT = 5
-AI_BACK_TO_MENU = "↩️ بازگشت به منوی خدمات هوش مصنوعی"
+AI_BACK_TO_MENU = "↩️ بازگشت به منوی خدمات  "
 
 
 
