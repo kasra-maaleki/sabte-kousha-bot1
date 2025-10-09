@@ -748,17 +748,17 @@ def handle_ai_text(update, context):
     chat_id = update.effective_chat.id
     context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
 
+    ai_mode = context.user_data.get("ai_mode")
+
     # ---------------------------
     # شاخهٔ مخصوص formalizer (رسمی‌سازی متن)
     # ---------------------------
-    ai_mode = context.user_data.get("ai_mode")
     if ai_mode == "formalizer":
-        # داده‌های محلی کاربر
         user_data.setdefault(chat_id, {})
         data = user_data[chat_id]
         step = data.get("step", 1)
 
-        # اگر کسی مستقیم وارد اینجا شد، step را 1 کن
+        # ایمنی: اگر step نامعتبر بود، 1 کن
         if step not in (1, 2):
             step = 1
             data["step"] = 1
@@ -767,13 +767,15 @@ def handle_ai_text(update, context):
             # گام 1: دریافت متن خام ساده
             if step == 1:
                 if not text:
-                    update.message.reply_text("❗️لطفاً متن ساده‌تان را ارسال کنید.")
+                    # فقط دکمهٔ بازگشت را نشان بده؛ از کیبورد کوچک/ثابت استفاده نکن
+                    kb = ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True)
+                    update.message.reply_text("📝 لطفاً متن ساده‌تان را ارسال کنید.", reply_markup=kb)
                     return
 
                 data["FORMAL_RAW"] = text
                 data["step"] = 2
 
-                # انتخاب شدت/سبک رسمیت
+                # انتخاب شدت/سبک رسمیت — کیبورد اختصاصی
                 keyboard = [[
                     "🔒 خیلی رسمی و حقوقی",
                     "⚖️ رسمی و روان",
@@ -790,17 +792,18 @@ def handle_ai_text(update, context):
                 style = text
                 valid_styles = ("🔒 خیلی رسمی و حقوقی", "⚖️ رسمی و روان", "🤝 رسمی دوستانه")
                 if style not in valid_styles:
-                    update.message.reply_text("لطفاً یکی از گزینه‌های سبک را انتخاب کنید.")
+                    # باز هم فقط دکمهٔ بازگشت را نگه داریم
+                    kb = ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True)
+                    update.message.reply_text("لطفاً یکی از گزینه‌های سبک را انتخاب کنید.", reply_markup=kb)
                     return
 
-                raw = data.get("FORMAL_RAW", "").strip()
+                raw = (data.get("FORMAL_RAW", "") or "").strip()
                 if not raw:
-                    # اگر به هر دلیلی متن خام در دسترس نبود، برگرد به گام 1
                     data["step"] = 1
-                    update.message.reply_text("❗️ابتدا متن ساده را ارسال کنید.")
+                    kb = ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True)
+                    update.message.reply_text("❗️ابتدا متن ساده را ارسال کنید.", reply_markup=kb)
                     return
 
-                # نگاشت سبک به دستور
                 style_map = {
                     "🔒 خیلی رسمی و حقوقی": "خیلی رسمی، حقوقی و کاملاً اداری؛ جمله‌بندی‌های محکم و ارجاعی.",
                     "⚖️ رسمی و روان": "رسمی و روان؛ دقیق، فاقد اغراق، خوانا و استاندارد اداری.",
@@ -808,7 +811,6 @@ def handle_ai_text(update, context):
                 }
                 style_directive = style_map[style]
 
-                # پرامپتِ ترکیبی برای ask_groq (چون امضای تابع فقط یک متن می‌گیرد)
                 combined_prompt = f"""
 [System]
 شما ویرایشگر حقوقی/اداری فارسی هستید. متن ورودی را بدون تغییر در حقایق، به یک متن رسمی و استاندارد تبدیل کنید.
@@ -829,47 +831,54 @@ def handle_ai_text(update, context):
 {raw}
                 """.strip()
 
-                # فراخوانی مدل
+                # تولید متن رسمی
                 answer = ask_groq(combined_prompt, max_tokens=900)
 
-                # پاسخ را (در صورت طولانی بودن) تکه‌تکه بفرست
+                # پاسخ را تکه‌تکه بفرست (بدون دکمهٔ اینلاین)
                 chunks = [answer[i:i+3500] for i in range(0, len(answer), 3500)]
-                for idx, ch in enumerate(chunks):
-                    if idx == len(chunks) - 1:
-                        update.message.reply_text(
-                            ch,
-                            reply_markup=InlineKeyboardMarkup(
-                                [[InlineKeyboardButton("↩️ برگشت به ادامه تنظیم صورتجلسه", callback_data=AI_RESUME)]]
-                            )
-                        )
-                    else:
-                        update.message.reply_text(ch)
+                for ch in chunks:
+                    update.message.reply_text(ch)
 
-                # آماده برای رسمی‌سازی متن بعدی (در همین حالت بماند)
+                # تلاش برای ساخت و ارسال فایل Word
+                try:
+                    file_path = generate_word_file(answer)  # باید از قبل در پروژه داشته باشی
+                    with open(file_path, 'rb') as f:
+                        context.bot.send_document(chat_id=chat_id, document=f, filename="متن_رسمی.docx")
+                except Exception as fe:
+                    print("WORD FILE ERROR:", fe)
+                    # اگر شکست خورد، ادامه بده—متن ارسال شده است
+
+                # بعد از خروجی، در حالت رسمی‌سازی بماند اما برگرد به step=1
                 data["step"] = 1
-                # اگر ترجیح می‌دهی بعد از هر خروجی از AI خارج شود:
-                # context.user_data.pop("ai_mode", None)
 
+                # پیام راهنما با کیبورد مینیمال (فقط بازگشت) تا دکمه‌های ثابت نمایش داده نشوند
+                kb = ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True)
+                context.bot.send_message(
+                    chat_id=chat_id,
+                    text="✅ تمام شد. اگر متن دیگری دارید، همین‌جا متن ساده‌اش را بفرستید یا با «بازگشت» خارج شوید.",
+                    reply_markup=kb
+                )
                 return
 
         except Exception as e:
             update.message.reply_text("❌ خطا در تولید متن رسمی. کمی بعد دوباره تلاش کنید.")
             print("FORMALIZER ERROR:", e)
-            # برگشت به گام 1 برای تلاش مجدد
+            # برگشت به گام 1 برای تلاش مجدد، با کیبورد مینیمال
             user_data[chat_id]["step"] = 1
+            kb = ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True)
+            update.message.reply_text("📝 لطفاً دوباره متن ساده‌تان را بفرستید.", reply_markup=kb)
             return
 
     # ---------------------------
     # رفتار پیش‌فرض برای سایر ai_mode ها (منطق قبلی‌ات)
     # ---------------------------
     try:
-        answer = ask_groq(text, max_tokens=900)  # همان تابعی که قبلاً ساختیم
+        answer = ask_groq(text, max_tokens=900)
 
-        # پاسخ را (در صورت طولانی بودن) تکه‌تکه بفرست
         chunks = [answer[i:i+3500] for i in range(0, len(answer), 3500)]
         for idx, ch in enumerate(chunks):
             if idx == len(chunks) - 1:
-                # فقط زیر «آخرین بخش پاسخ»، دکمهٔ بازگشت به ادامه مراحل را بگذار
+                # شاخهٔ عمومی—اگر نخواهی این دکمه اینلاین بیاید، این بلوک را حذف کن
                 update.message.reply_text(
                     ch,
                     reply_markup=InlineKeyboardMarkup(
@@ -882,6 +891,7 @@ def handle_ai_text(update, context):
     except Exception as e:
         update.message.reply_text("❌ خطا در دریافت پاسخ هوشمند. کمی بعد دوباره تلاش کنید.")
         print("GROQ ERROR:", e)
+
 
 
 
