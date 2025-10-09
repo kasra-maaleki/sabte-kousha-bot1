@@ -736,12 +736,15 @@ def handle_ai_text(update, context):
         return
 
     text = (update.message.text or "").strip()
-
     if text == AI_ASK_TEXT:
         return
 
     # فقط دکمه‌های «بازگشت» واقعاً از AI خارج کنند
     if text in (BACK_BTN, "🔙 بازگشت به ادامه مراحل"):
+        # توصیه: اطمینان از پاک‌شدن حالت AI در resume_from_ai
+        # داخل resume_from_ai حتماً این‌ها را داشته باش:
+        # context.user_data.pop("ai_mode", None)
+        # data.pop("FORMAL_RAW", None); data.pop("FORMAL_STYLE", None); data["step"] = 0
         resume_from_ai(update, context)
         return
 
@@ -749,6 +752,11 @@ def handle_ai_text(update, context):
     context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
 
     ai_mode = context.user_data.get("ai_mode")
+
+    # لیست گزینه‌های اصلی AI برای تشخیص "متن دکمه‌ی منو"
+    AI_TOP_OPTIONS = (
+        AI_OPT_MINUTES, AI_OPT_QA, AI_OPT_COMP_TYPE, AI_OPT_NAME, AI_OPT_CONTRACT, AI_OPT_FORMAL
+    )
 
     # ---------------------------
     # شاخهٔ مخصوص formalizer (رسمی‌سازی متن)
@@ -766,6 +774,13 @@ def handle_ai_text(update, context):
         try:
             # گام 1: دریافت متن خام ساده
             if step == 1:
+                # اگر کاربر یکی از گزینه‌های منو را زد، آن را متن خام حساب نکن
+                if text in AI_TOP_OPTIONS:
+                    # فقط بازگشت را نشان بده و از پیشروی جلوگیری کن
+                    update.message.reply_text("برای تغییر سرویس، ابتدا «بازگشت» را بزنید.",
+                                              reply_markup=ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True))
+                    return
+
                 if not text:
                     # 1) بستن کیبوردهای قبلی
                     update.message.reply_text(" ", reply_markup=ReplyKeyboardRemove())
@@ -774,7 +789,7 @@ def handle_ai_text(update, context):
                     update.message.reply_text("📝 لطفاً متن ساده‌تان را ارسال کنید.", reply_markup=kb)
                     return
 
-
+                # اینجا واقعاً متن خام است
                 data["FORMAL_RAW"] = text
                 data["step"] = 2
 
@@ -795,16 +810,16 @@ def handle_ai_text(update, context):
                 style = text
                 valid_styles = ("🔒 خیلی رسمی و حقوقی", "⚖️ رسمی و روان", "🤝 رسمی دوستانه")
                 if style not in valid_styles:
-                    update.message.reply_text(" ", reply_markup=ReplyKeyboardRemove())
-                    kb = ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True)
-                    update.message.reply_text("لطفاً یکی از گزینه‌های سبک را انتخاب کنید.", reply_markup=kb)
+                    # اگر چیز دیگری زد ( مثل دکمه‌های منو)، به کاربر اخطار بده
+                    update.message.reply_text("لطفاً یکی از گزینه‌های سبک را انتخاب کنید.",
+                                              reply_markup=ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True))
                     return
 
                 raw = (data.get("FORMAL_RAW", "") or "").strip()
                 if not raw:
                     data["step"] = 1
-                    kb = ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True)
-                    update.message.reply_text("❗️ابتدا متن ساده را ارسال کنید.", reply_markup=kb)
+                    update.message.reply_text("❗️ابتدا متن ساده را ارسال کنید.",
+                                              reply_markup=ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True))
                     return
 
                 style_map = {
@@ -842,34 +857,28 @@ def handle_ai_text(update, context):
                 for ch in chunks:
                     update.message.reply_text(ch)
 
-                # تلاش برای ساخت و ارسال فایل Word
+                # ارسال فایل Word
                 try:
-                    file_path = generate_word_file(answer)  # باید از قبل در پروژه داشته باشی
+                    file_path = generate_word_file(answer)
                     with open(file_path, 'rb') as f:
                         context.bot.send_document(chat_id=chat_id, document=f, filename="متن_رسمی.docx")
                 except Exception as fe:
                     print("WORD FILE ERROR:", fe)
-                    # اگر شکست خورد، ادامه بده—متن ارسال شده است
 
-                # بعد از خروجی، در حالت رسمی‌سازی بماند اما برگرد به step=1
+                # ماندن در formalizer اما بازگشت به گام 1، با کیبورد مینیمال
                 data["step"] = 1
-
-                # پیام راهنما با کیبورد مینیمال (فقط بازگشت) تا دکمه‌های ثابت نمایش داده نشوند
-                kb = ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True)
-                context.bot.send_message(
-                    chat_id=chat_id,
-                    text="✅ تمام شد. اگر متن دیگری دارید، همین‌جا متن ساده‌اش را بفرستید یا با «بازگشت» خارج شوید.",
-                    reply_markup=kb
+                update.message.reply_text(
+                    "✅ تمام شد. اگر متن دیگری دارید، همین‌جا بفرستید یا با «بازگشت» خارج شوید.",
+                    reply_markup=ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True)
                 )
                 return
 
         except Exception as e:
             update.message.reply_text("❌ خطا در تولید متن رسمی. کمی بعد دوباره تلاش کنید.")
             print("FORMALIZER ERROR:", e)
-            # برگشت به گام 1 برای تلاش مجدد، با کیبورد مینیمال
             user_data[chat_id]["step"] = 1
-            kb = ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True)
-            update.message.reply_text("📝 لطفاً دوباره متن ساده‌تان را بفرستید.", reply_markup=kb)
+            update.message.reply_text("📝 لطفاً دوباره متن ساده‌تان را بفرستید.",
+                                      reply_markup=ReplyKeyboardMarkup([[BACK_BTN]], resize_keyboard=True))
             return
 
     # ---------------------------
@@ -877,20 +886,9 @@ def handle_ai_text(update, context):
     # ---------------------------
     try:
         answer = ask_groq(text, max_tokens=900)
-
         chunks = [answer[i:i+3500] for i in range(0, len(answer), 3500)]
-        for idx, ch in enumerate(chunks):
-            if idx == len(chunks) - 1:
-                # شاخهٔ عمومی—اگر نخواهی این دکمه اینلاین بیاید، این بلوک را حذف کن
-                update.message.reply_text(
-                    ch,
-                    reply_markup=InlineKeyboardMarkup(
-                        [[InlineKeyboardButton("↩️ برگشت به ادامه تنظیم صورتجلسه", callback_data=AI_RESUME)]]
-                    )
-                )
-            else:
-                update.message.reply_text(ch)
-
+        for ch in chunks:
+            update.message.reply_text(ch)
     except Exception as e:
         update.message.reply_text("❌ خطا در دریافت پاسخ هوشمند. کمی بعد دوباره تلاش کنید.")
         print("GROQ ERROR:", e)
