@@ -42,6 +42,8 @@ BACK_BTN = "⬅️ بازگشت"
 AI_RESUME   = "AI_RESUME"   # کال‌بک دکمه‌ی بازگشت از AI
 AI_ASK_TEXT = "❓ سؤال دارم"
 AI_Q_LIMIT = 5
+AI_BACK_TO_MENU = "↩️ بازگشت به منوی خدمات هوش مصنوعی"
+
 
 
 
@@ -576,8 +578,8 @@ def enter_ai_mode_reply(update: Update, context: CallbackContext, sys_prompt: st
     context.user_data["ai_q_limit"] = globals().get("AI_Q_LIMIT", 5)
 
     msg = update.message.reply_text(
-        "🧠 حالت هوشمند ما فعال شد.\nسؤالت رو بپرس",
-        reply_markup=ReplyKeyboardRemove()
+        "🧠 حالت هوشمند فعال شد.\nسؤالت رو بپرس",
+        reply_markup=ai_consult_keyboard()
     )
 
     # ⛔️ فقط اگر از مسیر «مشاوره…» نیامده باشد، دکمه اینلاین را اضافه کن
@@ -990,6 +992,9 @@ def send_company_type_menu(chat_id, context):
 
 
 def start(update: Update, context: CallbackContext):
+    # خاموش‌سازی کامل حالت‌های AI
+    for k in ("ai_mode", "ai_sys_prompt", "ai_q_count", "ai_q_limit", "ai_skip_inline_back"):
+        context.user_data.pop(k, None)
     chat_id = update.message.chat_id
     user_data[chat_id] = {"step": 0}
 
@@ -1549,16 +1554,19 @@ def handle_message(update: Update, context: CallbackContext):
     
         # --- گارد حالت AI: ابتدای تابع ---
         if context.user_data.get("ai_mode"):
-            # اگر دکمه برگشت منویی داری، همین‌جا هندل کن (اختیاری)
-            if text == BACK_BTN:
-                context.user_data["ai_mode"] = False
+            # خروج از AI با هرکدام از دکمه‌های بازگشت
+            if text in (AI_BACK_TO_MENU, BACK_BTN, "🔙 بازگشت به ادامه مراحل"):
+                context.user_data.pop("ai_mode", None)
+                context.user_data.pop("ai_sys_prompt", None)
+                context.user_data.pop("ai_q_count", None)
+                context.user_data.pop("ai_q_limit", None)
+                context.user_data.pop("ai_skip_inline_back", None)
                 send_ai_services_menu(chat_id, context)
                 return
-    
+        
             handle_ai_text(update, context)
-            if not context.user_data.get("ai_mode"):
-                return
             return
+
 
         # ========== گارد شماره موبایل (اولویت قبل از هر چیز) ==========
         # اگر در وضعیت انتظار شماره هستیم، فقط شماره را پردازش کن:
