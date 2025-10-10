@@ -49,6 +49,11 @@ SKIP_WORDS = {"نمیدانم برو سوال بعد", "نمی‌دانم", "ن�
 BACK_ONLY_KB = ReplyKeyboardMarkup([["🔙 بازگشت"]], resize_keyboard=True)  # اگر BACK_BTN داری، همین را با آن جایگزین کن
 
 
+CONTACT_PHONE = "+989128687292"
+WHATSAPP_URL  = "https://wa.me/989128687292"
+CONTACT_NAME  = "ثبت کوشا | مشاوره قرارداد"
+
+
 
 # --- Contact Config (ویرایش کن) ---
 CONTACT_MOBILE_IR = "09128687292"     # شماره موبایل برای تماس (فرمت داخلی ایران)
@@ -1395,16 +1400,47 @@ def finish_contract_generation(chat_id, data, context):
     except Exception as e:
         context.bot.send_message(chat_id=chat_id, text=f"⚠️ ارسال فایل Word ممکن نشد: {e}")
 
-    promo = (
-        "اگر تمایل دارید قرارداد شما به صورت تخصصی توسط وکیل  رسمی دادگستری تنظیم شود با ما تماس بگیرید\n"
-        "📞 09128687292\n"
-        "واتس‌اپ: https://wa.me/989128687292"
+    # 3) کارت مخاطب (قابل ذخیره/تماس مستقیم)
+    try:
+        context.bot.send_contact(
+            chat_id=chat_id,
+            phone_number=CONTACT_PHONE,
+            first_name=CONTACT_NAME
+        )
+    except Exception as e:
+        context.bot.send_message(chat_id=chat_id, text=f"⚠️ ارسال مخاطب ممکن نشد: {e}")
+
+    # 4) پیام شکیل + دکمه‌های اینلاین تماس/واتس‌اپ
+    from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+    promo_text = (
+        "✨ اگر تمایل دارید قرارداد شما به صورت تخصصی توسط "
+        "<b>وکیل رسمی دادگستری</b> تنظیم شود با ما تماس بگیرید."
+        "\n\n"
+        f"📞 <b>تلفن:</b> <code>{CONTACT_PHONE}</code>\n"
+        "🟢 <b>WhatsApp:</b> گفت‌وگوی مستقیم"
     )
-    context.bot.send_message(chat_id=chat_id, text=promo, reply_markup=ai_services_keyboard())
+    promo_kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("📞 تماس تلفنی", url=f"tel:{CONTACT_PHONE}"),
+        InlineKeyboardButton("🟢 WhatsApp",   url=WHATSAPP_URL),
+    ]])
+    context.bot.send_message(
+        chat_id=chat_id,
+        text=promo_text,
+        parse_mode="HTML",
+        reply_markup=promo_kb
+    )
+
+    # 5) نمایش «کل منوی خدمات هوش مصنوعی» به‌عنوان کیبورد ثابت پایین چت
+    context.bot.send_message(
+        chat_id=chat_id,
+        text="منوی خدمات هوش مصنوعی:",
+        reply_markup=ai_services_keyboard()
+    )
 
     # خروج از مود
     data["step"] = 0
     context.user_data.pop("ai_mode", None)
+
 
 
 #---------------------------------------------------------------------------------------
