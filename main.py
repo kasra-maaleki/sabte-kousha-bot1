@@ -47,6 +47,7 @@ AI_CONTRACT_MODE  = "contract_gen"
 HELP_WORDS = {"راهنماییم کن", "?"}
 SKIP_WORDS = {"نمیدانم برو سوال بعد", "نمی‌دانم", "نمیدانم", "بیخیال", "skip", "-"}
 BACK_ONLY_KB = ReplyKeyboardMarkup([["🔙 بازگشت"]], resize_keyboard=True)  # اگر BACK_BTN داری، همین را با آن جایگزین کن
+CONSULT_OPT = AI_OPT_QA  # همان متن «💬 مشاوره مجازی قانون تجارت و ثبت شرکت»
 
 
 CONTACT_PHONE = "+989128687292"
@@ -806,6 +807,72 @@ def make_formal_text_with_ai(raw_text: str, style_hint: str = "⚖️ رسمی �
     return result.strip()
 
 
+# ============== توابع مشاوره مجازی ==============
+
+
+def enter_consult_mode(update: Update, context: CallbackContext):
+    """ورود به حالت مشاوره مجازی (کاملاً جدا از «سؤال دارم»)."""
+    chat_id = update.effective_chat.id
+    # حالت و شمارنده
+    context.user_data["consult_mode"] = True
+    context.user_data["consult_q_count"] = 0
+    context.user_data["consult_q_limit"] = AI_Q_LIMIT
+
+    context.bot.send_message(
+        chat_id=chat_id,
+        text=f"🧠 «مشاوره مجازی» فعال شد. می‌تونی تا {AI_Q_LIMIT} سؤال بپرسی.\nسؤال‌ت رو بنویس:",
+        reply_markup=ai_consult_keyboard()
+    )
+
+def handle_consult_text(update: Update, context: CallbackContext):
+    """پردازش متن در حالت مشاوره مجازی."""
+    chat_id = update.effective_chat.id
+    text = (update.message.text or "").strip()
+
+    # خروج با دکمه ثابت
+    if text == AI_BACK_TO_MENU:
+        _exit_consult_mode(context)
+        send_ai_services_menu(chat_id, context)
+        return
+
+    # سقف سؤال‌ها
+    q_count = int(context.user_data.get("consult_q_count", 0))
+    q_limit = int(context.user_data.get("consult_q_limit", AI_Q_LIMIT))
+    if q_count >= q_limit:
+        _exit_consult_mode(context)
+        context.bot.send_message(chat_id=chat_id, text="⛔️ سقف ۵ سؤال تمام شد.")
+        send_ai_services_menu(chat_id, context)
+        return
+
+    # --- تماس با مدلِ هوش مصنوعی (هر چی قبلاً استفاده می‌کردی) ---
+    sys_prompt = (
+        "شما کارشناس قانون تجارت ایران و امور ثبت شرکت‌ها هستید. "
+        "پاسخ‌ها دقیق، مرحله‌به‌مرحله و اجرایی باشد."
+    )
+    try:
+        # اگر ask_groq داری همان را استفاده کن
+        response = ask_groq(text, sys_prompt, max_tokens=700)
+    except Exception:
+        response = "❗️خطا در دریافت پاسخ. لطفاً دوباره تلاش کنید."
+
+    # ارسال پاسخ (کیبورد ثابت باقی بماند)
+    context.bot.send_message(chat_id=chat_id, text=response, reply_markup=ai_consult_keyboard())
+
+    # افزایش شمارنده و پایان در صورت رسیدن به سقف
+    q_count += 1
+    context.user_data["consult_q_count"] = q_count
+    if q_count >= q_limit:
+        _exit_consult_mode(context)
+        context.bot.send_message(chat_id=chat_id, text="✅ سقف ۵ سؤال کامل شد.")
+        send_ai_services_menu(chat_id, context)
+
+def _exit_consult_mode(context: CallbackContext):
+    """پاکسازی کامل حالت مشاوره."""
+    for k in ("consult_mode", "consult_q_count", "consult_q_limit"):
+        context.user_data.pop(k, None)
+
+
+#==========================================================================
 
 
 
@@ -1069,7 +1136,7 @@ def send_company_type_menu(chat_id, context):
 
 def start(update: Update, context: CallbackContext):
     # خاموش‌سازی کامل حالت‌های AI
-    for k in ("ai_mode", "ai_sys_prompt", "ai_q_count", "ai_q_limit", "ai_skip_inline_back"):
+    for k in ("ai_mode", "ai_sys_prompt", "ai_q_count", "ai_q_limit", "ai_skip_inline_back", "consult_mode", "consult_q_count", "consult_q_limit"):
         context.user_data.pop(k, None)
     chat_id = update.message.chat_id
     user_data[chat_id] = {"step": 0}
@@ -1446,7 +1513,7 @@ def finish_contract_generation(chat_id, data, context):
     try:
         file_path = generate_word_file(final_text)
         with open(file_path, "rb") as f:
-            context.bot.send_document(chat_id=chat_id, document=f, text=فایل ورد:, filename="قرارداد.docx")
+            context.bot.send_document(chat_id=chat_id, document=f, caption="📄 فایل ورد قرارداد", filename="قرارداد.docx")
     except Exception as e:
         context.bot.send_message(chat_id=chat_id, text=f"⚠️ ارسال فایل Word ممکن نشد: {e}")
 
@@ -1935,6 +2002,12 @@ def handle_message(update: Update, context: CallbackContext):
                 context.bot.send_message(chat_id=chat_id, text=label, reply_markup=back_keyboard())
                 return
 
+            # === شروع فلو مشاوره مجازی  ===
+            if text == CONSULT_OPT:
+                enter_consult_mode(update, context)
+                return
+
+
             # === شروع فلو تولید قرارداد اماده » ===
             if text == AI_OPT_CONTRACT:
                 chat_id = update.effective_chat.id
@@ -1969,7 +2042,15 @@ def handle_message(update: Update, context: CallbackContext):
             send_ai_services_menu(chat_id, context)
             return
 
-        
+
+
+        # -------------------------------
+        # فلو هوش مصنوعی: مشاوره مجازی  
+        # -------------------------------
+        if context.user_data.get("consult_mode"):
+            handle_consult_text(update, context)
+            return
+
 
         # -------------------------------
         # فلو هوش مصنوعی: پیشنهاد نام شرکت (Groq API)
@@ -2165,7 +2246,7 @@ def handle_message(update: Update, context: CallbackContext):
         موضوع = data.get("موضوع صورتجلسه")
         نوع_شرکت = data.get("نوع شرکت")
     
-        if "موضوع صورتجلسه" not in data and not context.user_data.get("ai_mode"):
+        if "موضوع صورتجلسه" not in data and not context.user_data.get("ai_mode", "consult_mode"):
             context.bot.send_message(
                 chat_id=chat_id,
                 text="لطفاً ابتدا موضوع صورتجلسه را انتخاب کنید. برای شروع مجدد /start را ارسال کنید .",
