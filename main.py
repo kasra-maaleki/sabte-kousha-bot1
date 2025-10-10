@@ -826,85 +826,78 @@ def enter_consult_mode(update: Update, context: CallbackContext):
     )
 
 def handle_consult_text(update: Update, context: CallbackContext):
-    """پردازش متن در حالت مشاوره مجازی."""
     chat_id = update.effective_chat.id
     text = (update.message.text or "").strip()
 
-    # خروج با دکمه ثابت
+    # دکمه برگشت به منوی خدمات
     if text == AI_BACK_TO_MENU:
         _exit_consult_mode(context)
         send_ai_services_menu(chat_id, context)
         return
 
-        # سقف سؤال‌ها
-        q_count = int(context.user_data.get("consult_q_count", 0))
-        q_limit = int(context.user_data.get("consult_q_limit", AI_Q_LIMIT))
-        if q_count >= q_limit:
-            # 1) کارت مخاطب
-            try:
-                context.bot.send_contact(
-                    chat_id=chat_id,
-                    phone_number=CONTACT_PHONE,
-                    first_name=CONTACT_NAME,
-                    reply_markup=ai_services_keyboard()  # اگر منوی خدمات AI داری
-                )
-            except Exception as e:
-                context.bot.send_message(chat_id=chat_id, text=f"⚠️ ارسال مخاطب ممکن نشد: {e}")
-    
-            # 2) متن تبلیغ + دکمه واتس‌اپ
-            from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-            promo_text = (
-                "✨ اگر تمایل به مشاوره تخصصی دارید "
-                "با ما تماس بگیرید\n"
-                f"📞 <b>تلفن:</b> <code>{CONTACT_PHONE}</code>"
-            )
-            promo_kb = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🟢 گفت‌وگو در WhatsApp", url=WHATSAPP_URL)]
-            ])
-            context.bot.send_message(
-                chat_id=chat_id,
-                text=promo_text,
-                parse_mode="HTML",
-                reply_markup=promo_kb
-            )
-    
-            # 3) خروج از حالت مشاوره و بازگشت به منوی خدمات AI
-            _exit_consult_mode(context)  # پاکسازی consult_mode/… اگر همین تابع را قبلاً ساختیم
-            context.bot.send_message(chat_id=chat_id, text="⛔️ سقف ۵ سؤال تمام شد.")
-            send_ai_services_menu(chat_id, context)
-            return
+    # همیشه در ابتدای تابع این دو مقدار را امن بگیر
+    q_count = int(context.user_data.get("consult_q_count", 0))
+    q_limit = int(context.user_data.get("consult_q_limit", AI_Q_LIMIT))
 
+    # اگر قبل از دریافت پاسخ به سقف رسیده‌ایم
+    if q_count >= q_limit:
+        _send_consult_end_bundle(chat_id, context)  # کارت مخاطب + واتس‌اپ + پیام اتمام
+        return
 
-    # --- تماس با مدلِ هوش مصنوعی (هر چی قبلاً استفاده می‌کردی) ---
+    # --- تولید پاسخ هوش مصنوعی ---
     sys_prompt = (
         "نقش: کارشناس «قانون تجارت ایران» و «ثبت/تغییرات شرکت‌ها». فقط در همین حوزه پاسخ بده.\n"
         "خروجی: دقیق، کوتاه، مرحله‌به‌مرحله و قابل اجرا.\n"
-        "دامنه (نمونه‌ها): انواع شرکت‌ها و تفاوت‌ها؛ ثبت/نام/موضوع/سرمایه/سهام‌داران؛ تغییرات (آدرس، نام، موضوع، افزایش/کاهش سرمایه، نقل‌وانتقال سهم/سهم‌الشرکه)؛ ارکان (هیئت‌مدیره/مدیرعامل/بازرس/مجمع) و صورتجلسه؛ حق‌امضا؛ انحلال/تصفیه؛ روزنامه رسمی؛ مدارک و مراحل سامانه ثبت.\n"
-        "خارج از دامنه: کیفری/خانواده/املاک/پزشکی/سرمایه‌گذاری/رمزارز/کشورهای دیگر. اگر خارج بود، محترمانه امتناع کن و دامنهٔ خدمات را یادآوری کن.\n"
-        "قالب پاسخ:\n"
-        "1) خلاصه کوتاه.\n"
-        "2) مدارک لازم (بولت).\n"
-        "3) گام‌ها.\n"
-        "4) مواد/مراجع (در صورت امکان) یا «طبق رویه ثبتی».\n"
-        "اگر اطلاعات کاربر ناکافی است، اول 1–3 پرسش تکمیلی بپرس.\n"
-        "لحن: مؤدب، شفاف، بدون قطعیت در موارد اختلاف رویه («ممکن است…»)."
+        "دامنه: انواع شرکت‌ها؛ ثبت/نام/موضوع/سرمایه/سهام‌داران؛ تغییرات؛ ارکان و صورتجلسه؛ حق‌امضا؛ انحلال؛ روزنامه رسمی؛ مدارک و مراحل ثبت.\n"
+        "خارج از دامنه: کیفری/خانواده/املاک/پزشکی/سرمایه‌گذاری/رمزارز/کشورهای دیگر. اگر خارج بود، محترمانه امتناع کن.\n"
+        "اگر داده ناکافی است، 1–3 پرسش تکمیلی بپرس."
     )
     try:
-        # اگر ask_groq داری همان را استفاده کن
         response = ask_groq(text, sys_prompt, max_tokens=700)
     except Exception:
         response = "❗️خطا در دریافت پاسخ. لطفاً دوباره تلاش کنید."
 
-    # ارسال پاسخ (کیبورد ثابت باقی بماند)
+    # ارسال پاسخ با کیبورد ثابت
     context.bot.send_message(chat_id=chat_id, text=response, reply_markup=ai_consult_keyboard())
 
-    # افزایش شمارنده و پایان در صورت رسیدن به سقف
+    # افزایش شمارنده پس از پاسخ موفق
     q_count += 1
     context.user_data["consult_q_count"] = q_count
+
+    # اگر تازه به سقف رسیدیم، بسته پایانی را بفرست و خارج شو
     if q_count >= q_limit:
-        _exit_consult_mode(context)
-        context.bot.send_message(chat_id=chat_id, text="✅ سقف ۵ سؤال کامل شد.")
-        send_ai_services_menu(chat_id, context)
+        _send_consult_end_bundle(chat_id, context)
+        return
+
+
+def _send_consult_end_bundle(chat_id: int, context: CallbackContext):
+    # کارت مخاطب
+    try:
+        context.bot.send_contact(
+            chat_id=chat_id,
+            phone_number=CONTACT_PHONE,
+            first_name=CONTACT_NAME,
+            reply_markup=ai_services_keyboard()  # منوی خدمات AI اگر داری
+        )
+    except Exception as e:
+        context.bot.send_message(chat_id=chat_id, text=f"⚠️ ارسال مخاطب ممکن نشد: {e}")
+
+    # متن تبلیغ + دکمه واتس‌اپ
+    from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+    promo_text = (
+        "✨ اگر تمایل به مشاوره تخصصی دارید با ما تماس بگیرید\n"
+        f"📞 <b>تلفن:</b> <code>{CONTACT_PHONE}</code>"
+    )
+    promo_kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🟢 گفت‌وگو در WhatsApp", url=WHATSAPP_URL)]
+    ])
+    context.bot.send_message(chat_id=chat_id, text=promo_text, parse_mode="HTML", reply_markup=promo_kb)
+
+    # خروج و بازگشت به منو
+    _exit_consult_mode(context)
+    context.bot.send_message(chat_id=chat_id, text="✅ سقف ۵ سؤال کامل شد.")
+    send_ai_services_menu(chat_id, context)
+
 
 def _exit_consult_mode(context: CallbackContext):
     """پاکسازی کامل حالت مشاوره."""
