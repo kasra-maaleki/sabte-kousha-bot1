@@ -1446,7 +1446,7 @@ def finish_contract_generation(chat_id, data, context):
     try:
         file_path = generate_word_file(final_text)
         with open(file_path, "rb") as f:
-            context.bot.send_document(chat_id=chat_id, document=f, filename="contract.docx")
+            context.bot.send_document(chat_id=chat_id, document=f, text=فایل ورد:, filename="قرارداد.docx")
     except Exception as e:
         context.bot.send_message(chat_id=chat_id, text=f"⚠️ ارسال فایل Word ممکن نشد: {e}")
 
@@ -1456,6 +1456,7 @@ def finish_contract_generation(chat_id, data, context):
             chat_id=chat_id,
             phone_number=CONTACT_PHONE,
             first_name=CONTACT_NAME
+            reply_markup=ai_services_keyboard()
         )
     except Exception as e:
         context.bot.send_message(chat_id=chat_id, text=f"⚠️ ارسال مخاطب ممکن نشد: {e}")
@@ -1480,12 +1481,7 @@ def finish_contract_generation(chat_id, data, context):
         reply_markup=promo_kb
     )
 
-    # 5) نمایش «کل منوی خدمات هوش مصنوعی» به‌عنوان کیبورد ثابت پایین چت
-    context.bot.send_message(
-        chat_id=chat_id,
-        text="\u200B",  # Zero-width space با اسکیپ امن؛ چیزی نمایش نمی‌دهد
-        reply_markup=ai_services_keyboard()
-    )
+
     # خروج از مود
     data["step"] = 0
     context.user_data.pop("ai_mode", None)
