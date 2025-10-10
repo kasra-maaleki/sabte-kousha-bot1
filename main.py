@@ -1976,7 +1976,7 @@ def handle_message(update: Update, context: CallbackContext):
 
 
         # --- AI Landing Options ---
-        if text in (AI_OPT_MINUTES, AI_OPT_QA, AI_OPT_COMP_TYPE, AI_OPT_NAME, AI_OPT_CONTRACT, AI_OPT_FORMAL):
+        if text in (AI_OPT_MINUTES, AI_OPT_QA, AI_OPT_COMP_TYPE, AI_OPT_NAME, AI_OPT_CONTRACT, AI_OPT_FORMAL, CONSULT_OPT):
             if text == AI_OPT_MINUTES:
                 # تنظیم وضعیت برای ورود به فلو صورتجلسه
                 
@@ -1995,12 +1995,6 @@ def handle_message(update: Update, context: CallbackContext):
                     text="🧩 لطفاً بفرمایید چه کلمه‌ی اصلی برای نام شرکت در نظر دارید؟\n(مثلاً: آتی، پارس، نیک، آراد...)",
                     reply_markup=back_keyboard()
                 )
-                return
-
-            # نگاشت مستقیم: «مشاوره …» ≡ «سؤال دارم» + حذف بک اینلاین
-            if text == AI_OPT_QA:
-                context.user_data["ai_skip_inline_back"] = True  # اگر نمی‌خواهی اینلاین‌بکِ صورتجلسه نمایش داده شود
-                enter_ai_mode_reply(update, context)
                 return
 
                 
