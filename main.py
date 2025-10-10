@@ -43,7 +43,10 @@ AI_RESUME   = "AI_RESUME"   # کال‌بک دکمه‌ی بازگشت از AI
 AI_ASK_TEXT = "❓ سؤال دارم"
 AI_Q_LIMIT = 5
 AI_BACK_TO_MENU = "↩️ بازگشت به منوی خدمات  "
-
+AI_CONTRACT_MODE  = "contract_gen"
+HELP_WORDS = {"راهنماییم کن", "?"}
+SKIP_WORDS = {"نمیدانم برو سوال بعد", "نمی‌دانم", "نمیدانم", "بیخیال", "skip", "-"}
+BACK_ONLY_KB = ReplyKeyboardMarkup([["🔙 بازگشت"]], resize_keyboard=True)  # اگر BACK_BTN داری، همین را با آن جایگزین کن
 
 
 
@@ -184,7 +187,75 @@ def is_persian_number(text):
     return all('۰' <= ch <= '۹' or ch.isspace() for ch in text)
 
 
+# توابع تولید قرارداد اماده
 
+CON_HELP_PREFIX = "CON_HELP"
+CON_SKIP_PREFIX = "CON_SKIP"
+
+def is_help(txt: str) -> bool:
+    return (txt or "").strip() in HELP_WORDS
+
+def is_skip(txt: str) -> bool:
+    return (txt or "").strip() in SKIP_WORDS
+
+def assist_inline(step: int) -> InlineKeyboardMarkup:
+    # دکمه‌های اینلاین کنار هر سؤال
+    rows = [[
+        InlineKeyboardButton("راهنماییم کن", callback_data=f"{CON_HELP_PREFIX}:{step}"),
+        InlineKeyboardButton("نمیدانم برو سوال بعد", callback_data=f"{CON_SKIP_PREFIX}:{step}"),
+    ]]
+    return InlineKeyboardMarkup(rows)
+
+# نام کلید داده متناظر با هر step
+STEP_FIELD = {
+    1: "نوع قرارداد",
+    2: "طرف اول",
+    3: "طرف دوم",
+    4: "موضوع",
+    5: "مبلغ و پرداخت",
+    6: "مدت",
+    7: "تعهدات",
+    8: "وجه التزام",
+    9: "فسخ",
+    10:"حل اختلاف",
+    11:"محل/تاریخ/شهود",
+}
+
+def label_for_step(step: int) -> str:
+    L = {
+        1:  "نوع قرارداد را بنویسید.",
+        2:  "مشخصات طرف اول (نام/شناسه/نشانی/نماینده) را بنویسید.",
+        3:  "مشخصات طرف دوم (نام/شناسه/نشانی/نماینده) را بنویسید.",
+        4:  "موضوع قرارداد را بنویسید.",
+        5:  "مبلغ و نحوه پرداخت را بنویسید.",
+        6:  "مدت (شروع/پایان/تحویل) را بنویسید.",
+        7:  "تعهدات طرفین را بنویسید (بولت‌پوینت هم می‌پذیرد).",
+        8:  "وجه‌التزام/جریمه تأخیر (اختیاری) را بنویسید.",
+        9:  "شرایط فسخ و خاتمه را بنویسید.",
+        10: "حل اختلاف (داوری/مرجع قضایی/حوزه) را بنویسید.",
+        11: "محل و تاریخ تنظیم + شهود (اختیاری) را بنویسید.",
+    }
+    return f"{L[step]}\n\n(اگر نمی‌دانید، «راهنماییم کن» یا «نمیدانم برو سوال بعد» را بزنید.)"
+
+def hint_for(field_key: str) -> str:
+    H = {
+        "نوع قرارداد": "مثلاً: مشارکت مدنی، خرید و فروش، اجاره، ارائه خدمات، پیمانکاری، محرمانگی (NDA). اگر مطمئن نیستید نوع کلی فعالیت/معامله را بنویسید.",
+        "طرف اول": "نام/شناسه ملی/آدرس/نماینده (در صورت وجود). اگر شخص حقوقی است: نام شرکت، شماره ثبت، شناسه ملی، نشانی، نماینده و سمت.",
+        "طرف دوم": "مشابه طرف اول.",
+        "موضوع": "دقیق و قابل سنجش بنویسید: چه کاری/چه کالایی/چه خروجی‌هایی با چه ویژگی‌هایی.",
+        "مبلغ و پرداخت": "عدد + واحد پول + نحوه پرداخت (پیش‌پرداخت، اقساط، هنگام تحویل…). اگر قیمت شناور است، مرجع محاسبه را ذکر کنید.",
+        "مدت": "تاریخ شروع/پایان، نقاط تحویل، تمدید خودکار یا خیر.",
+        "تعهدات": "فهرست کوتاه: چه کسی چه کاری تا چه زمانی با چه معیاری.",
+        "وجه التزام": "جریمه تأخیر/نقض تعهد؛ روزانه/درصد/رقم ثابت.",
+        "فسخ": "شرایط خاتمه: تخلف اساسی، عدم پرداخت، قوه قاهره، ورشکستگی.",
+        "حل اختلاف": "مذاکره، داوری (اختیاری)، مرجع قضایی و حوزه.",
+        "محل/تاریخ/شهود": "شهر تنظیم، تاریخ، نام/مشخصات شهود (اختیاری).",
+    }
+    return "ℹ️ نکته: " + H.get(field_key, "برای این بخش توضیح کوتاه و اجرایی بدهید.")
+
+
+
+----------------------------------------------------------------------------
 
 
 # تبدیل اعداد فارسی به انگلیسی
@@ -1259,6 +1330,77 @@ def build_signatures_block(d: dict) -> str:
     return "امضاء اعضای هیات مدیره\n\n" + "\n".join(lines)
 
 
+# --- توابع تولید قرارداد اماده --------------
+
+
+def build_contract_prompt_flexible(نوع, طرف_اول, طرف_دوم, موضوع, مبلغ_و_پرداخت, مدت, تعهدات, وجه_التزام, فسخ, حل_اختلاف, محل_تاریخ_شهود, بخش‌های_ناقص):
+    sys_rules = (
+        "قرارداد رسمی فارسی بنویس. لحن حقوقی، بندبندی شماره‌دار، عنوان‌گذاری روشن. "
+        "برای فیلدهایی که کاربر پاسخی نداده، بندهای استاندارد و محافظه‌کارانه «پیشنهادی» بساز "
+        "و ابتدای آن‌ها برچسب «[پیشنهادی]» بگذار. از تضمین‌های غیرواقعی پرهیز کن. "
+        "اعداد را با ارقام فارسی بنویس."
+    )
+    user_facts = f"""
+    نوع قرارداد: {نوع or "[نامشخص]"}
+    طرف اول: {طرف_اول or "[نامشخص]"}
+    طرف دوم: {طرف_دوم or "[نامشخص]"}
+    موضوع: {موضوع or "[نامشخص]"}
+    مبلغ و پرداخت: {مبلغ_و_پرداخت or "[نامشخص]"}
+    مدت: {مدت or "[نامشخص]"}
+    تعهدات: {تعهدات or "[نامشخص]"}
+    وجه التزام: {وجه_التزام or "[نامشخص]"}
+    فسخ: {فسخ or "[نامشخص]"}
+    حل اختلاف: {حل_اختلاف or "[نامشخص]"}
+    محل/تاریخ/شهود: {محل_تاریخ_شهود or "[نامشخص]"}
+    """
+    return (
+        "SYSTEM:\n" + sys_rules + "\n\n" +
+        "USER:\n" + user_facts + "\n\n" +
+        "خروجی را به صورت متن کامل قرارداد تولید کن. بندهای پیشنهادی را با «[پیشنهادی]» علامت‌گذاری کن."
+    )
+
+def finish_contract_generation(chat_id, data, context):
+    missing = [k for k in STEP_FIELD.values() if not data.get(k)]
+
+    prompt = build_contract_prompt_flexible(
+        نوع=data.get("نوع قرارداد",""),
+        طرف_اول=data.get("طرف اول",""),
+        طرف_دوم=data.get("طرف دوم",""),
+        موضوع=data.get("موضوع",""),
+        مبلغ_و_پرداخت=data.get("مبلغ و پرداخت",""),
+        مدت=data.get("مدت",""),
+        تعهدات=data.get("تعهدات",""),
+        وجه_التزام=data.get("وجه التزام",""),
+        فسخ=data.get("فسخ",""),
+        حل_اختلاف=data.get("حل اختلاف",""),
+        محل_تاریخ_شهود=data.get("محل/تاریخ/شهود",""),
+        بخش‌های_ناقص=missing
+    )
+
+    context.bot.send_chat_action(chat_id=chat_id, action="typing")
+    try:
+        final_text = ask_groq(prompt)
+    except Exception as e:
+        final_text = f"❗️خطا در تولید متن قرارداد:\n{e}"
+
+    # ارسال متن
+    context.bot.send_message(chat_id=chat_id, text=final_text)
+
+    # ارسال Word
+    try:
+        file_path = generate_word_file(final_text)
+        with open(file_path, "rb") as f:
+            context.bot.send_document(chat_id=chat_id, document=f, filename="contract.docx")
+    except Exception as e:
+        context.bot.send_message(chat_id=chat_id, text=f"⚠️ ارسال فایل Word ممکن نشد: {e}")
+
+    # خروج از مود
+    data["step"] = 0
+    context.user_data.pop("ai_mode", None)
+
+
+---------------------------------------------------------------------------------------
+
 
 
 def handle_inline_callbacks(update: Update, context: CallbackContext):
@@ -1708,6 +1850,27 @@ def handle_message(update: Update, context: CallbackContext):
                 context.bot.send_message(chat_id=chat_id, text=label, reply_markup=back_keyboard())
                 return
 
+            # === شروع فلو تولید قرارداد اماده » ===
+            if text == AI_OPT_CONTRACT:
+                chat_id = update.effective_chat.id
+                user_data.setdefault(chat_id, {})
+                data = user_data[chat_id]
+                data.clear()
+                data["step"] = 1
+                context.user_data["ai_mode"] = AI_CONTRACT_MODE
+        
+                # کیبورد متنی فقط با «بازگشت»
+                context.bot.send_message(chat_id=chat_id, text="حالت تولید قرارداد فعال شد. هر زمان خواستید «🔙 بازگشت» را بزنید.", reply_markup=BACK_ONLY_KB)
+        
+                # سؤال اول با دکمه‌های اینلاین
+                step = 1
+                context.bot.send_message(
+                    chat_id=chat_id,
+                    text=label_for_step(step),
+                    reply_markup=assist_inline(step)
+                )
+                return
+
 
 
             
@@ -1864,6 +2027,50 @@ def handle_message(update: Update, context: CallbackContext):
                 context.bot.send_message(chat_id=chat_id, text=result_text, reply_markup=main_keyboard())
                 send_ai_services_menu(chat_id, context)  # اگر می‌خواهی بعدش دوباره منوی AI نشان داده شود
                 return
+
+        # =========================
+        # AI: تولید قرارداد آماده
+        # =========================
+        if context.user_data.get("ai_mode") == AI_CONTRACT_MODE:
+            chat_id = update.effective_chat.id
+            data = user_data.setdefault(chat_id, {})
+            step = data.get("step", 0)
+            txt = (update.message.text or "").strip()
+        
+            # برگشت سراسری
+            if txt == BACK_BTN:
+                handle_back(update, context)
+                return
+        
+            # اگر کاربر "راهنماییم کن" یا "نمیدانم..." را تایپ کرد (غیر از اینلاین)
+            if is_help(txt):
+                field = STEP_FIELD.get(step)
+                context.bot.send_message(chat_id=chat_id, text=hint_for(field))
+                context.bot.send_message(chat_id=chat_id, text=label_for_step(step), reply_markup=assist_inline(step))
+                return
+            if is_skip(txt):
+                # عبور: فیلد فعلی را خالی می‌گذاریم
+                data[STEP_FIELD.get(step)] = ""
+                step += 1
+                data["step"] = step
+                if step <= 11:
+                    context.bot.send_message(chat_id=chat_id, text=label_for_step(step), reply_markup=assist_inline(step))
+                    return
+                else:
+                    return finish_contract_generation(chat_id, data, context)
+        
+            # پاسخ معمولی
+            if 1 <= step <= 11:
+                data[STEP_FIELD[step]] = txt
+                step += 1
+                data["step"] = step
+                if step <= 11:
+                    context.bot.send_message(chat_id=chat_id, text=label_for_step(step), reply_markup=assist_inline(step))
+                    return
+                else:
+                    return finish_contract_generation(chat_id, data, context)
+
+
 
 
 
@@ -5350,59 +5557,101 @@ def handle_back(update: Update, context: CallbackContext):
 
 def button_handler(update: Update, context: CallbackContext):
     query = update.callback_query
-
-    # ۱) رشته‌ی کال‌بک را جدا نگه دار
     payload = query.data or ""
+
+    # ۱) کال‌بک‌های مربوط به روزنامه (بدون تغییر)
     if payload.startswith("newspaper:"):
         return  # بگذار handle_newspaper_choice رسیدگی کند
-
 
     chat_id = query.message.chat_id
     query.answer()
 
-    # ۲) از اینجا به بعد، 'data' دوباره همان دیکشنری وضعیت کاربر است
+    # ۲) وضعیت کاربر
     data = user_data.setdefault(chat_id, {})
 
+    # ۲.۱) --- پشتیبانی دکمه‌های اینلاین حالت "تولید قرارداد" ---
+    # این بلوک را قبل از گارد AI نگه می‌داریم تا در مود قرارداد عمل کند
+    if payload.startswith(f"{CON_HELP_PREFIX}:") or payload.startswith(f"{CON_SKIP_PREFIX}:"):
+        current_mode = context.user_data.get("ai_mode")
 
-    
-    # اگر کال‌بکِ مخصوص خروج از AI بود یا هنوز داخل AI هستیم، این هندلر کاری نکند
+        # فقط وقتی در مود قرارداد هستیم عمل کند
+        if current_mode != AI_CONTRACT_MODE:
+            query.answer()
+            return
+
+        # استخراج شماره‌ی مرحله از callback_data
+        try:
+            _, step_str = payload.split(":")
+            step = int(step_str)
+        except Exception:
+            query.answer("خطا در داده دکمه.")
+            return
+
+        # هم‌تراز کردن step با داده‌ی جاری
+        data["step"] = step
+
+        # راهنما: نکته را ارسال کن و همان سؤال را با دکمه‌ها دوباره بپرس
+        if payload.startswith(f"{CON_HELP_PREFIX}:"):
+            field = STEP_FIELD.get(step)
+            context.bot.send_message(chat_id=chat_id, text=hint_for(field))
+            context.bot.send_message(chat_id=chat_id, text=label_for_step(step), reply_markup=assist_inline(step))
+            query.answer("راهنما ارسال شد.")
+            return
+
+        # عبور: فیلد فعلی را خالی کن و به مرحله بعد برو (یا تولید نهایی)
+        if payload.startswith(f"{CON_SKIP_PREFIX}:"):
+            field_key = STEP_FIELD.get(step)
+            if field_key:
+                data[field_key] = ""  # خالی = تولید «[پیشنهادی]» در خروجی
+            step += 1
+            data["step"] = step
+
+            if step <= 11:
+                context.bot.send_message(chat_id=chat_id, text=label_for_step(step), reply_markup=assist_inline(step))
+                query.answer("از این سؤال عبور شد.")
+                return
+            else:
+                query.answer("در حال تولید متن قرارداد…")
+                finish_contract_generation(chat_id, data, context)
+                return
+
+    # ۳) گارد AI موجود شما (بدون تغییر) — برای سایر مودهای AI هیچ کاری نکند
+    # (توجه: چون منطق قرارداد را بالا هندل کردیم، این گارد دیگر مزاحم آن نمی‌شود)
     if data == AI_RESUME or context.user_data.get("ai_mode"):
         return
 
-
-
+    # ۴) بقیه منطق اصلی شما بدون تغییر
     if "موضوع صورتجلسه" not in user_data.get(chat_id, {}):
         # اولین کلیک روی دکمه‌ی موضوع
-        if query.data == "topic:extend_roles":
+        if payload == "topic:extend_roles":
             # موضوع مخصوص تمدید سمت اعضا (فقط سهامی خاص)
             user_data[chat_id]["موضوع صورتجلسه"] = TOPIC_EXTEND_ROLES
             user_data[chat_id]["step"] = 0
-    
+
             # حالت‌های این سناریو در context.user_data
             context.user_data["topic"] = TOPIC_EXTEND_ROLES
             context.user_data["company_type"] = "سهامی خاص"
-    
+
             # پاک‌سازی وضعیت قبلی سناریو (اگر بود)
             context.user_data.pop("extend_roles", None)
             context.user_data.pop("extend_state", None)
-    
+
             # شروع سناریو اختصاصی تمدید سمت اعضا
             start_extend_roles_flow(update, context)
             return
         else:
             # سایر موضوع‌ها طبق روال قبلی → انتخاب نوع شرکت
-            user_data[chat_id]["موضوع صورتجلسه"] = query.data
+            user_data[chat_id]["موضوع صورتجلسه"] = payload
             user_data[chat_id]["step"] = 0
             send_company_type_menu(chat_id, context)
             return
 
-
-
     if user_data[chat_id].get("step") == 0:
-        user_data[chat_id]["نوع شرکت"] = query.data
+        user_data[chat_id]["نوع شرکت"] = payload
+
         # اگر موضوع = نقل و انتقال سهام است
         if user_data[chat_id]["موضوع صورتجلسه"] == "نقل و انتقال سهام":
-            if query.data == "مسئولیت محدود":
+            if payload == "مسئولیت محدود":
                 # 👇 اول اطلاعیه ماده ۱۰۳، بعد سوال نام شرکت
                 context.bot.send_message(chat_id=chat_id, text=get_label("اطلاعیه_ماده103", سند="سند صلح"))
 
@@ -5416,24 +5665,24 @@ def button_handler(update: Update, context: CallbackContext):
                 return
 
         # شروع: تغییر نام شرکت - مسئولیت محدود
-        if user_data[chat_id].get("موضوع صورتجلسه") == "تغییر نام شرکت" and query.data == "مسئولیت محدود":
+        if user_data[chat_id].get("موضوع صورتجلسه") == "تغییر نام شرکت" and payload == "مسئولیت محدود":
             user_data[chat_id]["step"] = 1
             context.bot.send_message(chat_id=chat_id, text=get_label("نام شرکت"))
             return
 
         # شروع: تغییر نام شرکت - سهامی خاص
-        if user_data[chat_id].get("موضوع صورتجلسه") == "تغییر نام شرکت" and query.data == "سهامی خاص":
+        if user_data[chat_id].get("موضوع صورتجلسه") == "تغییر نام شرکت" and payload == "سهامی خاص":
             user_data[chat_id]["step"] = 1
             context.bot.send_message(chat_id=chat_id, text=get_label("نام شرکت"))
             return
-    
+
         # سایر موضوع‌ها
         user_data[chat_id]["step"] = 1
         context.bot.send_message(chat_id=chat_id, text="نام شرکت را وارد کنید:")
         return
 
     if data.get("موضوع صورتجلسه") == "تغییر موضوع فعالیت" and data.get("step") in (10, 13):
-        انتخاب = query.data
+        انتخاب = payload
         query.answer()
 
         if انتخاب == "الحاق":
