@@ -1696,19 +1696,15 @@ def handle_message(update: Update, context: CallbackContext):
         data = user_data.setdefault(chat_id, {"step": 0})
     
         # --- گارد حالت AI: ابتدای تابع ---
-        if context.user_data.get("ai_mode"):
-            # خروج از AI با هرکدام از دکمه‌های بازگشت
-            if text in (AI_BACK_TO_MENU, BACK_BTN, "🔙 بازگشت به ادامه مراحل"):
-                context.user_data.pop("ai_mode", None)
-                context.user_data.pop("ai_sys_prompt", None)
-                context.user_data.pop("ai_q_count", None)
-                context.user_data.pop("ai_q_limit", None)
-                context.user_data.pop("ai_skip_inline_back", None)
-                send_ai_services_menu(chat_id, context)
+        current_mode = context.user_data.get("ai_mode")
+        if current_mode and current_mode != AI_CONTRACT_MODE:   # ⬅️ فقط غیر از contract_gen
+            if text == AI_ASK_TEXT:
                 return
-        
             handle_ai_text(update, context)
+            if not context.user_data.get("ai_mode"):
+                return
             return
+
 
 
         # ========== گارد شماره موبایل (اولویت قبل از هر چیز) ==========
