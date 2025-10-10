@@ -1522,7 +1522,7 @@ def finish_contract_generation(chat_id, data, context):
         context.bot.send_contact(
             chat_id=chat_id,
             phone_number=CONTACT_PHONE,
-            first_name=CONTACT_NAME
+            first_name=CONTACT_NAME,
             reply_markup=ai_services_keyboard()
         )
     except Exception as e:
