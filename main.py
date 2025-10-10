@@ -1414,15 +1414,15 @@ def finish_contract_generation(chat_id, data, context):
     from telegram import InlineKeyboardMarkup, InlineKeyboardButton
     promo_text = (
         "✨ اگر تمایل دارید قرارداد شما به صورت تخصصی توسط "
-        "<b>وکیل رسمی دادگستری</b> تنظیم شود با ما تماس بگیرید."
-        "\n\n"
+        "<b>وکیل رسمی دادگستری</b> تنظیم شود با ما تماس بگیرید.\n\n"
+        "برای تماس تلفنی، روی <b>کارت مخاطب</b> بالا بزنید.\n"
         f"📞 <b>تلفن:</b> <code>{CONTACT_PHONE}</code>\n"
         "🟢 <b>WhatsApp:</b> گفت‌وگوی مستقیم"
     )
-    promo_kb = InlineKeyboardMarkup([[
-        InlineKeyboardButton("📞 تماس تلفنی", url=f"tel:{CONTACT_PHONE}"),
-        InlineKeyboardButton("🟢 WhatsApp",   url=WHATSAPP_URL),
-    ]])
+    promo_kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🟢 گفت‌وگو در WhatsApp", url=WHATSAPP_URL)]
+    ])
+    
     context.bot.send_message(
         chat_id=chat_id,
         text=promo_text,
@@ -1433,7 +1433,7 @@ def finish_contract_generation(chat_id, data, context):
     # 5) نمایش «کل منوی خدمات هوش مصنوعی» به‌عنوان کیبورد ثابت پایین چت
     context.bot.send_message(
         chat_id=chat_id,
-        text="منوی خدمات هوش مصنوعی:",
+        text="منوی خدمات  :",
         reply_markup=ai_services_keyboard()
     )
 
