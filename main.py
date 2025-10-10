@@ -1483,7 +1483,6 @@ def finish_contract_generation(chat_id, data, context):
     # 5) نمایش «کل منوی خدمات هوش مصنوعی» به‌عنوان کیبورد ثابت پایین چت
     context.bot.send_message(
         chat_id=chat_id,
-        text="منوی خدمات  :",
         reply_markup=ai_services_keyboard()
     )
 
