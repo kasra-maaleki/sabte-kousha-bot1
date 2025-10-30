@@ -128,8 +128,10 @@ def ai_services_keyboard():
     from telegram import ReplyKeyboardMarkup, KeyboardButton
     rows = [
         [KeyboardButton(AI_OPT_MINUTES)],
-        [KeyboardButton(AI_OPT_QA), KeyboardButton(AI_OPT_COMP_TYPE)],
-        [KeyboardButton(AI_OPT_NAME), KeyboardButton(AI_OPT_CONTRACT)],
+        [KeyboardButton(AI_OPT_QA)],
+        [KeyboardButton(AI_OPT_COMP_TYPE)],
+        [KeyboardButton(AI_OPT_NAME)],
+        [KeyboardButton(AI_OPT_CONTRACT)],
         [KeyboardButton(AI_OPT_FORMAL)],
     ]
     # اگر بک دکمهٔ سراسری داری، می‌تونی اینجا هم اضافه‌اش کنی
